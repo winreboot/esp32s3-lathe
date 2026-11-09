@@ -1,0 +1,80 @@
+Interface board rev F, 144 x 94 mm, two-sided, no plated holes
+Mill files redrawn as one operation per layer, after a CAM review: ISO_CENTER is the cutter centre line for a 0.5 mm cutter (follow it, no offset), CLEAR_POCKET is pocketed, COPPER_REF is only for reference, drills are split by size, the slot is its own layer and OUTLINE is a plain rectangle. Small pads grow up to 2.2 mm where there is room. Straight-line gap through the slot to the lathe side at least 6 mm. Alignment holes no longer symmetric, so the board cannot be fitted upside down. Slot 2.0 mm wide.
+
+PASS net +12V connected
+PASS net 3V3 connected
+PASS net CPIN connected
+PASS net GPIO2 connected
+PASS net HIGH connected
+PASS net LOW connected
+PASS net OA connected
+PASS net OB connected
+PASS net OC connected
+PASS net OZ connected
+PASS net QAB connected
+PASS net QBB connected
+PASS net QCB connected
+PASS net QZB connected
+PASS net SPA connected
+PASS net SPB connected
+PASS net SPZ connected
+PASS net U1A connected
+PASS net WIPER connected
+PASS net XA connected
+PASS net XB connected
+PASS net ZA connected
+PASS net ZB connected
+PASS top: isolation between nets >= 1.00 mm: closest 61.00 mm (+12V/3V3)
+PASS top: top traces and via pads isolated from the top ground fill by >= 1.00 mm: closest 1.00 mm
+PASS top: every non-GND lead has its own isolation ring (or sits in a cleared area): 61 rings, 10 leads in cleared areas
+PASS top: ground copper between neighbouring rings >= 0.40 mm: narrowest 0.74 mm
+PASS top: every piece of top ground fill has a GND via: 1 piece(s), 8 GND via(s); 0 small piece(s) with no room for a via left to CLEAR
+PASS top: lathe side to ESP32 side >= 8.0 mm (other than around the slot): 8.0 mm
+PASS bottom: ISO_CENTER has one separate closed path round every copper outline (0.5 mm cutter): 32 shapes -> 32 paths, 35 rings -> 35
+PASS top: ISO_CENTER has one separate closed path round every copper outline (0.5 mm cutter): 3 shapes -> 3 paths, 66 rings -> 66
+PASS bottom: ISO groove plus CLEAR pockets remove all copper that is not kept
+PASS top: ISO groove plus CLEAR pockets remove all copper that is not kept
+PASS alignment holes clear of all non-GND copper: at (72.0, 3.5), (72.0, 74.2)
+PASS holes >= 0.5 mm apart: closest 1.74 mm (Q2.E/Q3.E)
+PASS isolation between nets >= 1.00 mm: closest 1.00 mm (QAB/QBB)
+PASS isolation from ground fill >= 1.00 mm: closest 1.00 mm
+PASS all GND pads joined (bottom ground pieces linked by GND vias through the top ground)
+PASS lathe side to ESP32 side >= 8.0 mm (other than around the slot): 8.0 mm, closest at (139.7, 67.7)
+PASS path around the slot ends >= 8.0 mm: 12.1 mm to the nearer end
+PASS lathe side to ESP32 side in a straight line (through the slot) >= 6.0 mm: bottom 6.0 mm, top 6.0 mm; the slot is 2.0 mm wide
+PASS copper clear of the slot by >= 1.00 mm: closest 1.00 mm
+PASS bottom: small pads grown where there is room: ring round the hole: 30 x 0.35 mm, 9 x 0.60 mm, 11 x 0.70 mm (pads 1.5-2.2 mm across)
+PASS pads inside the board edge margin
+PASS every bottom ground piece has a GND via: 4 piece(s); 18 floating island(s) removed
+
+Holes: 65 x 0.8 mm, 35 x 1.3 mm, 2 x 3.0 mm
+
+Parts:
+  100nF      C3
+  100uF      C2
+  10k        R5, R6, R7, R8, R9, R10, R11, R12
+  10uF 25V   C1
+  2.2k       R1, R2, R3, R4
+  2N3904     Q1, Q2, Q3, Q4
+  330        R13
+  4.7k       R14
+  PC817      U1
+
+Via pins (bare wire through the hole, soldered top and bottom): 15
+  V1   +12V  (13.0, 80.8)
+  V2   +12V  (13.0, 45.3)
+  V3   +12V  (13.0, 24.9)
+  V4   3V3   (76.0, 80.4)
+  V5   3V3   (76.0, 62.6)
+  V6   3V3   (76.0, 35.1)
+  V7   3V3   (76.0, 14.8)
+  V8   GND   (23.0, 91.0)
+  V9   GND   (78.0, 91.0)
+  V10  GND   (65.0, 71.0)
+  V11  GND   (110.0, 47.0)
+  V12  GND   (36.0, 43.0)
+  V13  GND   (3.0, 3.0)
+  V14  GND   (66.0, 3.0)
+  V15  GND   (141.0, 3.0)
+
+Alignment holes, 3.0 mm, on the flip line x = 72.0: (72.0, 3.5), (72.0, 74.2)

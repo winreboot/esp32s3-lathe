@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:www.machiningdoctor.com)",
+      "WebFetch(domain:fullerfasteners.com)",
+      "WebFetch(domain:tooler.com)",
+      "WebFetch(domain:datumcalc.com)",
+      "WebFetch(domain:www.roymech.co.uk)",
+      "WebFetch(domain:www.gewindebohrer.de)"
+    ]
+  }
+}

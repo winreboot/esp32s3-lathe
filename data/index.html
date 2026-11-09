@@ -1,0 +1,1305 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESP32 CNC Lathe Control</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Ccircle cx='16' cy='16' r='11' fill='%23e6edf7'/%3E%3Ccircle cx='16' cy='16' r='4.5' fill='%232563eb'/%3E%3Cg fill='%230c1324'%3E%3Crect x='14' y='5' width='4' height='7' rx='1'/%3E%3Crect x='14' y='5' width='4' height='7' rx='1' transform='rotate(120 16 16)'/%3E%3Crect x='14' y='5' width='4' height='7' rx='1' transform='rotate(240 16 16)'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+:root{--bg:#0a1020;--card:#111a2e;--card2:#0d1527;--line:#223052;--txt:#e6edf7;--mut:#8fa1c2;--cyan:#38bdf8;--blue:#3b82f6;--green:#22c55e;--amber:#f59e0b;--red:#ef4444;--purple:#a855f7}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.4 Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+header{display:flex;align-items:center;gap:24px;padding:10px 18px;border-bottom:1px solid var(--line);background:#0c1324}
+header h1{font-size:20px;margin:0}header .sub{color:var(--mut);font-size:12px}
+.pill{border:1px solid var(--green);color:var(--green);border-radius:20px;padding:4px 12px;font-weight:600;background:#0f2a1c}
+.pill.off{border-color:var(--amber);color:var(--amber);background:#2a1f0a}
+.stat{color:var(--txt);display:flex;align-items:center;gap:8px;padding-left:20px;border-left:1px solid var(--line)}
+.stat b{color:#fff}.ip{margin-left:auto;text-align:right;color:var(--cyan)}
+body{min-height:100vh;display:flex;flex-direction:column}
+.layout{flex:1;display:grid;grid-template-columns:96px 1fr}
+nav{background:#0c1324;border-right:1px solid var(--line);padding:10px 6px;display:flex;flex-direction:column;gap:4px}
+nav a{display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;padding:10px 4px;border-radius:8px;color:var(--mut);text-decoration:none;font-size:12px}
+nav a.on,nav a:hover{background:var(--blue);color:#fff}
+nav svg,.hdr-btn svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+header{flex-wrap:wrap;gap:8px 12px}header .stat{padding-left:12px}header h1{font-size:18px}.hdr-btns{display:flex;gap:6px}dialog button{white-space:nowrap}.big{white-space:nowrap}
+.hdr-btn{display:flex;align-items:center;gap:6px;padding:6px 10px;font-size:12px}.hdr-btn svg{width:16px;height:16px}.hdr-btn:hover{background:var(--blue);border-color:var(--blue)}.hdr-btn.off{border-color:var(--amber);color:var(--amber)}
+dialog{background:none;border:0;padding:0;color:var(--txt);width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px)}dialog.wide{width:min(960px,calc(100vw - 32px))}dialog::backdrop{background:rgba(3,7,18,.7)}
+.dlg-x{margin-left:auto;padding:2px 9px;font-size:14px}.card h2 .tag+.dlg-x{margin-left:0}
+.set-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.set-grid label{display:flex;flex-direction:column;gap:3px;color:var(--mut);font-size:12px}.set-grid input,.set-grid select{width:100%}
+.lv{background:var(--card2);border:1px solid var(--line);border-radius:8px;margin:8px 0}.lv svg{display:block;width:100%;height:auto;max-height:340px}.lv text{font:11px Segoe UI,Roboto,Helvetica,Arial,sans-serif;fill:var(--mut)}
+.lv-spin{stroke-dasharray:10 12}.lv-spin.on{animation:lvspin .5s linear infinite}@keyframes lvspin{to{stroke-dashoffset:-22}}
+.rec-bar{flex-wrap:wrap}.lv-info{color:var(--mut);font-size:12px;font-variant-numeric:tabular-nums}.lv-info b{color:var(--cyan)}#views:not(.single) .rec-detail{display:none}
+main{padding:12px;display:grid;grid-template-columns:1.2fr 1.6fr 1fr;grid-auto-rows:min-content;gap:12px}
+main.single{grid-template-columns:minmax(0,1fr);max-width:1100px}main.single .card{grid-column:auto}
+.card{min-width:0;overflow:hidden;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}.card h2 .tag{margin-left:auto;font-size:11px;font-weight:600;border-radius:12px;padding:3px 9px;border:1px solid var(--green);color:var(--green)}
+.card h2 .tag.warn{border-color:var(--amber);color:var(--amber)}.card h2 .tag.blue{border-color:var(--cyan);color:var(--cyan)}
+.axis{container-type:inline-size;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 12px;background:var(--card2);border:1px solid var(--line);border-left:4px solid var(--cyan);border-radius:8px;padding:10px 12px;margin-bottom:10px}
+.axis .lbl{color:var(--cyan);font-weight:600;font-size:16px}.axis .lbl small{color:var(--mut);font-weight:400}
+.axis>div:first-child{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 10px;grid-column:1 / -1}
+.axis .val{white-space:nowrap;font-size:clamp(28px,15cqw,84px);line-height:1.15;font-weight:700;color:var(--cyan);text-align:right;font-variant-numeric:tabular-nums;grid-column:1}.axis .val small{font-size:.4em;color:var(--txt)}.axis button{grid-column:2}
+@container (max-width:310px){.axis .val{font-size:clamp(24px,12.5cqw,84px)}}
+.axis .dot{color:var(--green);font-size:12px}
+button{background:#1e2a44;color:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer;font-weight:600}
+button.primary{background:var(--blue);border-color:var(--blue)}button.green{background:#15803d;border-color:#15803d}button.red{background:#b91c1c;border-color:#b91c1c}
+button:disabled{opacity:.45;cursor:default}
+input,select,textarea{background:#0a1020;color:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:14px}
+.row{display:flex;align-items:center;gap:8px;margin:6px 0}.row .k{color:var(--mut);min-width:120px}.row .v{margin-left:auto;font-weight:600}
+.big{font-size:22px;color:var(--green);background:#0f2a1c;border:1px solid var(--green);border-radius:8px;padding:4px 12px;text-align:center}
+.gauge{display:grid;grid-template-columns:1.1fr 1fr;gap:12px;align-items:center}
+canvas{width:100%;height:auto;display:block;max-width:100%}
+.timeline{position:relative;margin:10px 0}.timeline input{width:100%}
+.ticks{display:flex;justify-content:space-between;color:var(--mut);font-size:11px}
+.legend{display:flex;gap:16px;justify-content:center;font-size:12px;color:var(--mut)}.legend i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-right:6px}
+.ev{display:grid;grid-template-columns:62px 1fr;gap:8px;padding:5px 0;border-bottom:1px solid #182340;font-size:13px}.ev .t{color:var(--mut);font-variant-numeric:tabular-nums}
+.alarm{background:#3b2a0a;border-left:3px solid var(--amber);padding:6px 8px;border-radius:4px;margin:4px 0;display:flex;gap:8px}
+.alarm.info{background:#0f1f33;border-left-color:var(--cyan)}
+.tw-steps{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.tw-steps button{flex:1 1 70px;padding:6px 8px;font-size:12px;font-weight:600;background:var(--card2);color:var(--mut)}
+.tw-steps button.on{background:var(--blue);border-color:var(--blue);color:#fff}.tw-steps button.done{color:var(--green);border-color:var(--green)}
+.tw-sel{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;background:var(--card2);border:1px solid var(--line);border-left:4px solid var(--cyan);border-radius:8px;padding:8px 12px;margin-bottom:10px}
+.tw-sel .k{color:var(--mut);font-size:12px}.tw-sel b{color:var(--cyan);font-size:18px}.tw-sel .d{color:var(--mut);font-size:12px}
+.tw-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;align-items:start}
+.tw-q{font-weight:600;margin:0 0 8px}
+.tw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:6px}.tw-grid.wide{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
+.tw-tile{padding:8px 4px;text-align:center}.tw-tile small{display:block;font-weight:400;font-size:11px;color:var(--mut)}
+.tw-tile.on{background:var(--blue);border-color:var(--blue)}.tw-tile.on small{color:#dbeafe}
+.tw-fig{margin:0;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px}.tw-fig svg{display:block;width:100%;height:auto}
+.tw-fig text{font:13px Segoe UI,Roboto,Helvetica,Arial,sans-serif;fill:var(--txt)}.tw-fig text.m{fill:var(--mut);font-size:11px}.tw-fig text.t{font-size:18px;font-weight:700;fill:var(--cyan)}
+.stat a{color:#fff;font-weight:700;text-decoration:none;display:inline-block;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}.stat a:hover{color:var(--cyan)}
+.tw-group{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 12px;margin-bottom:10px}.tw-group .k{min-width:140px}.tw-group h3{font-size:13px;margin:4px 0}
+.tw-tool{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0;font-size:13px}.tw-tool.ok{color:var(--green)}.tw-tool.bad{color:var(--amber)}
+.tl-loaded{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;background:var(--card2);border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:8px;padding:10px 12px;margin-bottom:10px}.tl-loaded b{color:var(--amber);font-size:20px}.tl-loaded .k{color:var(--mut);font-size:12px}
+.tl-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr) minmax(0,1.2fr) auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #182340}.tl-row.on{color:var(--amber)}.tl-row .btns{display:flex;gap:6px}.tl-row small{color:var(--mut)}
+dialog.help{width:min(1240px,calc(100vw - 32px))}
+.hp-tabs{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:6px;background:var(--card);padding:0 0 10px}.hp-tabs button{flex:1 1 110px;font-size:12px;background:var(--card2);color:var(--mut)}.hp-tabs button.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.hp-pane h3{font-size:14px;margin:16px 0 6px;color:var(--cyan)}.hp-pane p{margin:6px 0}.hp-pane ol,.hp-pane ul{margin:6px 0;padding-left:22px}.hp-pane li{margin:4px 0}.hp-pane code{background:var(--card2);padding:1px 5px;border-radius:4px}
+.hp-danger{display:block;background:#3b1414;border-left-color:var(--red);padding:10px 12px}
+.hp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin:8px 0}.hp-box{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}.hp-box svg{display:block;width:100%;height:auto;margin:8px 0}
+.hp-scroll{overflow-x:auto}.hp-t{border-collapse:collapse;width:100%;font-size:13px}.hp-t th{text-align:left;color:var(--mut);font-weight:600;border-bottom:1px solid var(--line);padding:6px 8px;white-space:nowrap}.hp-t td{border-bottom:1px solid #182340;padding:6px 8px;vertical-align:top}
+.hp-wires tr[data-w]{cursor:pointer}.hp-wires tr[data-w]:hover,.hp-wires tr.on{background:#1e2a44}.hp-sw{display:inline-block;width:32px;height:10px;border-radius:3px;border:1px solid #e6edf7}
+.hp-fig{overflow-x:auto;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px}.hp-fig svg{display:block;width:100%;min-width:900px;height:auto}.hp-fig text,.hp-box svg text{font:13px Segoe UI,Roboto,Helvetica,Arial,sans-serif;fill:var(--txt)}.hp-fig text.m{font-size:11px;fill:var(--mut)}.hp-fig text.hp-pin{font-size:13px;font-weight:700;fill:#fde047}
+.hp-t tr.hp-use td:first-child{color:#fde047;font-weight:700}.hp-t tr.hp-warn td{color:#f87171}
+.hp-dim g[data-w]{opacity:.12}.hp-dim g[data-w].on{opacity:1}.hp-dim g[data-w].on path{stroke-width:5}
+.hp-steps{display:flex;flex-direction:column;gap:4px}.hp-step{display:flex;gap:10px;align-items:flex-start;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer}.hp-step input{flex:none;margin-top:3px;width:16px;height:16px}.hp-step small{display:block;color:var(--mut);font-size:12px;margin-top:2px}.hp-step.done{opacity:.6}.hp-n{color:var(--cyan);margin-right:2px}
+.tl-h{font-size:13px;margin:14px 0 6px}.tl-name{display:flex;align-items:center;gap:8px;min-width:0}.tl-name svg{flex:none}
+.tl-pick{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start}
+.tl-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.tw-warn{margin:8px 0;display:block}.tw-warn div+div{margin-top:6px}
+.tw-ins{display:flex;gap:12px;align-items:center;background:var(--card2);border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:8px;padding:8px 12px;margin-bottom:10px}
+.tw-ins-art{flex:none}.tw-ins-art svg{display:block}.tw-ins-art text{font:11px Segoe UI,Roboto,Helvetica,Arial,sans-serif;fill:var(--mut)}.tw-ins-txt{min-width:0}.tw-ins .k{color:var(--mut);font-size:12px}.tw-ins .d{color:var(--mut);font-size:12px;margin-top:2px}.tw-ins .d b{color:var(--txt)}.tw-ins-code{color:var(--amber);font-size:20px;font-weight:700}
+.progress{height:8px;background:#0a1020;border-radius:4px;overflow:hidden;margin:8px 0}.progress i{display:block;height:100%;background:var(--green)}
+.hidden{display:none}textarea{width:100%;min-height:110px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.span2{grid-column:span 2}.span3{grid-column:span 3}
+.sidenote{color:var(--mut);font-size:12px}
+.toast{position:fixed;right:16px;bottom:16px;background:#1e2a44;border:1px solid var(--line);padding:10px 14px;border-radius:8px;display:none}
+@media(max-width:1100px){main{grid-template-columns:1fr}.span2,.span3{grid-column:span 1}.layout{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr}nav{flex-direction:row;overflow:auto}nav a{flex:0 0 72px}}
+</style></head><body>
+<header>
+  <div><h1>ESP32 CNC Lathe Control</h1><div class="sub" id="hdrVer">Firmware — · Page —</div></div>
+  <span class="pill" id="ready">● Machine Ready</span>
+  <span class="stat">Mode: <b id="mode">Manual</b></span>
+  <span class="stat">Spindle: <b id="hdrSpindle">— @ 0 RPM</b></span>
+  <span class="stat">Tool: <a href="#tools" id="hdrTool">None</a></span>
+  <span class="ip"><div id="hdrHost">ESP32-Lathe</div><div id="hdrIp">—</div></span>
+  <span class="hdr-btns">
+    <button class="hdr-btn" id="bWifi" onclick="dlg('dlgWifi')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0M5.5 13a10 10 0 0 1 13 0M9 16.5a5 5 0 0 1 6 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>Wi-Fi</button>
+    <button class="hdr-btn" onclick="dlg('dlgFw')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/><rect x="10" y="10" width="4" height="4"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>Firmware</button>
+    <button class="hdr-btn" onclick="dlg('dlgHelp')"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9 9.2a3 3 0 1 1 4.6 2.6c-1 .6-1.6 1.2-1.6 2.4"/><circle cx="12" cy="17.4" r=".8" fill="currentColor"/></svg>Help</button>
+    <button class="hdr-btn" onclick="dlg('dlgSet')"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>Settings</button>
+  </span>
+</header>
+<div class="layout">
+<nav>
+  <a href="#overview" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg>Overview</a>
+  <a href="#dro"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v16h16"/><path d="M2.5 5.5 5 3l2.5 2.5"/><path d="M18.5 16.5 21 19l-2.5 2.5"/><circle cx="14" cy="10" r="2"/></svg>DRO</a>
+  <a href="#spindle"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 3v4M19.8 16.5l-3.5-2M4.2 16.5l3.5-2"/></svg>Spindle</a>
+  <a href="#threading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v4H7z"/><path d="M9 7v11l3 3 3-3V7"/><path d="M9 11l6-2M9 15l6-2M9 18l6-2"/></svg>Threading</a>
+  <a href="#tools"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 1 5-1.1l-3 3 1.1 2.1 2.1 1.1 3-3a4 4 0 0 1-5.6 4.9L8 21.5a2.1 2.1 0 0 1-3-3l8.2-8.2a4 4 0 0 1 1.5-4Z" transform="translate(-1 -1.5)"/></svg>Tools</a>
+  <a href="#recorder"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></svg>Recorder</a>
+  <a href="#logs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14.5 3v4.5H19"/><path d="M9 12h7M9 16h7"/></svg>Logs</a>
+</nav>
+<main id="views">
+  <!-- Alarms: on Overview only while one is active (see render) -->
+  <section class="card span3" id="alarmCard" data-view="logs"><h2>Alarms / Notifications <span class="tag warn" id="alarmTag">0 active</span></h2><div id="alarms"><div class="sidenote">No active alarms.</div></div></section>
+
+  <!-- DRO -->
+  <section class="card" data-view="overview dro"><h2>Axis Position (Live DRO) <span class="tag" id="cncTag">CNC Online</span></h2>
+    <div class="axis"><div><div class="lbl">X Axis <small>(Cross)</small></div><div class="dot">● Diameter</div></div><div class="val" id="xv">0.0000 <small>in</small></div><button onclick="send({cmd:'zeroX'})">⌖<br>ZERO</button></div>
+    <div class="axis"><div><div class="lbl">Z Axis <small>(Longitudinal)</small></div><div class="dot">● Carriage</div></div><div class="val" id="zv">0.0000 <small>in</small></div><button onclick="send({cmd:'zeroZ'})">⌖<br>ZERO</button></div>
+    <div class="sidenote">Positions come from the 600 P/R encoders on each slide. Zero here to match UCCNC's work zero.</div>
+  </section>
+
+  <!-- Spindle -->
+  <section class="card" data-view="overview spindle"><h2>Spindle <span class="tag" id="encTag">Encoder: OK</span></h2>
+    <div class="gauge">
+      <div><canvas id="gauge" width="360" height="300"></canvas></div>
+      <div>
+        <div class="row"><span class="k">Target RPM</span><input id="target" type="number" step="10" min="0" style="width:110px" value="0"><button class="primary" onclick="setTarget()">Set</button></div>
+        <div class="row"><span class="k">Source</span><span class="v" id="src">Knob</span><button onclick="send({cmd:'knob'})" title="Give control back to the physical knob">Knob</button></div>
+        <div class="row"><span class="k">Direction</span><span class="v" id="dir">CW (Forward)</span></div>
+        <div class="row"><span class="k">Spindle Load</span><span class="v" id="load">0%</span></div>
+        <canvas id="loadChart" width="340" height="110"></canvas>
+        <div class="sidenote">Load = drive effort the controller needs to hold the target.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Surface speed -->
+  <section class="card" data-view="overview spindle"><h2>Surface Speed Calculator</h2>
+    <div class="row"><span class="k">Diameter (D)</span><input id="ssD" type="number" value="1.0" step="0.01" style="width:90px"><select id="ssDu"><option>in</option><option>mm</option></select></div>
+    <div class="row"><span class="k">Surface Speed (V)</span><input id="ssV" type="number" value="400" style="width:90px"><select id="ssVu"><option>SFM</option><option>m/min</option></select></div>
+    <div class="row" style="flex-wrap:wrap"><span class="k">Resulting RPM</span><span class="big" id="ssOut" style="font-size:18px">—</span><button onclick="useRpm()">Use</button></div>
+  </section>
+
+  <!-- Recorder -->
+  <section class="card span3" data-view="overview recorder"><h2>Operation Recording &amp; Playback <span class="tag blue" id="recTag">Idle</span></h2>
+    <div class="row rec-bar">
+      <input id="recName" placeholder="recording name" value="thread_M12_test" style="width:170px">
+      <button class="red" id="bRec" onclick="lvHalt();send({cmd:'recStart',name:val('recName')})">● Record</button>
+      <button onclick="recStopAll()">■ Stop</button>
+      <button onclick="send({cmd:'recSave'})">⤓ Save</button>
+      <button class="primary" onclick="lvPreview()" title="Animate the recording on screen only. The machine does not move.">▶ Preview</button>
+      <button onclick="lvHalt();send({cmd:'play',speed:+val('playSpeed')})" title="Runs the real spindle at the recorded speeds">⟳ Playback (runs spindle)</button>
+      <select id="playSpeed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+      <span id="recTime" style="margin-left:auto;font-variant-numeric:tabular-nums">00:00.0 / 00:00.0</span>
+    </div>
+    <div class="timeline"><input id="scrub" type="range" min="0" max="1000" value="0" disabled><div class="ticks" id="ticks"></div></div>
+    <div class="lv"><svg viewBox="0 0 900 290" role="img" aria-label="Side view of the lathe showing the part being cut">
+      <defs><linearGradient id="lvSteel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#64748b"/><stop offset=".35" stop-color="#cbd5e1"/><stop offset="1" stop-color="#334155"/></linearGradient></defs>
+      <rect x="0" y="20" width="44" height="240" rx="3" fill="#1e2a44" stroke="#223052"/>
+      <rect x="44" y="40" width="22" height="200" rx="2" fill="#334155" stroke="#475569"/>
+      <path id="lvSpin" class="lv-spin" d="M55 40V240" stroke="#94a3b8" stroke-width="3" fill="none"/>
+      <rect id="lvGhost" fill="#f59e0b" fill-opacity=".08" stroke="#f59e0b" stroke-opacity=".5" stroke-dasharray="5 4"/>
+      <polygon id="lvPart" fill="url(#lvSteel)"/>
+      <rect id="lvJawT" x="60" width="28" fill="#475569" stroke="#64748b"/><rect id="lvJawB" x="60" width="28" fill="#475569" stroke="#64748b"/>
+      <path d="M44 140H900" stroke="#38bdf8" stroke-width="1" stroke-dasharray="14 4 3 4" opacity=".6"/>
+      <polyline id="lvPath" fill="none" stroke="#38bdf8" stroke-width="1" stroke-opacity=".55"/>
+      <g id="lvTool"><g id="lvToolBody"></g><circle id="lvSpark" r="3.5" fill="#f97316" opacity="0"/></g>
+      <g id="lvRule"></g>
+    </svg></div>
+    <div class="row rec-bar"><span class="k" style="min-width:0">Stock Ø (in)</span><input id="lvD" type="number" min="0" step="any" placeholder="auto" style="width:80px"><span class="k" style="min-width:0">Length (in)</span><input id="lvL" type="number" min="0" step="any" placeholder="auto" style="width:80px"><span class="lv-info" id="lvInfo" style="margin-left:auto"></span></div>
+    <div class="rec-detail">
+      <div class="legend"><span><i style="background:var(--cyan)"></i>X Axis (in)</span><span><i style="background:var(--green)"></i>Z Axis (in)</span><span><i style="background:var(--amber)"></i>Spindle RPM (×0.01)</span></div>
+      <canvas id="recChart" width="900" height="220"></canvas>
+    </div>
+    <div class="row"><span class="k">Saved recordings</span><select id="recList" style="flex:1"></select><button onclick="send({cmd:'recLoad',name:val('recList')});setTimeout(()=>send({cmd:'recData'}),400)">Load</button><a id="dlCsv" href="#"><button>CSV</button></a><a id="dlNc" href="#"><button class="green">Export G-code</button></a></div>
+    <div class="sidenote">The part is calculated from the recorded X/Z path with the spindle turning, with X zeroed on the centerline and Z0 at the end face. Threads appear at their root diameter, not as a helix. Preview is on screen only. Playback also runs the spindle at the recorded speeds; the axes are driven by UCCNC, so export the recording as G-code and run it there.</div>
+  </section>
+
+  <!-- Run hours -->
+  <section class="card" data-view="spindle"><h2>Run Hours</h2>
+    <div class="row"><span class="k">Spindle Run Time</span><span class="v" id="spinH">—</span></div>
+    <div class="row"><span class="k">Machine Power On</span><span class="v" id="powH">—</span></div>
+  </section>
+
+  <!-- Events -->
+  <section class="card" data-view="logs"><h2>Recent Events (Last 10) <a href="#" class="tag blue" onclick="toggleAll(event)">View All</a></h2><div id="events"></div></section>
+
+  <!-- Threading -->
+  <section class="card" data-view="threading"><h2>Thread Wizard <span class="tag blue" id="twTag">External</span></h2>
+    <div class="tw-steps" id="twSteps"></div>
+    <div class="tw-sel" id="twSel"></div>
+    <div class="tw-body">
+      <div>
+        <div id="twP1"><p class="tw-q">Which thread type?</p><div class="tw-grid wide" id="twForms"></div></div>
+        <div id="twP2"><p class="tw-q">Which thread size?</p><div class="tw-grid" id="twSizes"></div></div>
+        <div id="twP3"><p class="tw-q" id="twP3q">Which pitch?</p><div class="tw-grid wide" id="twPitches"></div>
+          <div id="twCustom">
+            <div class="row"><span class="k" id="twCMajL">Major Ø</span><input id="cMajor" type="number" min="0" step="any" style="width:100px"></div>
+            <div class="row"><span class="k" id="twCPitL">Pitch</span><input id="cPitch" type="number" min="0" step="any" style="width:100px"></div>
+          </div>
+        </div>
+        <div id="twP4"><p class="tw-q">Confirm and generate</p>
+          <div class="tw-ins" id="twIns"></div>
+          <div class="tw-tool" id="twToolChk"></div>
+          <div class="tw-group"><h3>Workpiece</h3>
+            <div class="row"><span class="k" id="tStockL">Stock Ø</span><input id="tStock" type="number" min="0" step="any" style="width:100px"><span class="v" id="tStockSt"></span></div>
+            <div class="row"><span class="k" id="tLenL">Thread length</span><input id="tLen" type="number" min="0" step="any" style="width:100px"></div>
+            <div class="sidenote">Set X0 on the centerline and Z0 on the end face. The thread runs from Z0 to minus the length, and the tool retracts clear of the stock Ø.</div>
+          </div>
+          <div class="tw-group hidden" id="twTurn"><h3>OD turning program (run first, with a turning tool)</h3>
+            <div class="row"><span class="k" id="tDocL">Depth per pass</span><input id="tDoc" type="number" min="0" step="any" style="width:100px"></div>
+            <div class="row"><span class="k">Feed (in/rev)</span><input id="tFeed" type="number" min="0" step="any" style="width:100px"></div>
+            <div class="row"><span class="k">Spindle RPM</span><input id="tTurnRpm" type="number" min="1" step="10" style="width:100px"></div>
+            <div class="row"><span class="k">Turned length</span><span class="v" id="tTurnLen">—</span></div>
+          </div>
+          <div class="row"><span class="k">Threading RPM</span><input id="tRpm" type="number" min="1" step="10" style="width:100px"></div>
+          <div class="row"><span class="k" id="tPassL">Max first pass</span><input id="tPass" type="number" min="0" step="any" style="width:100px"></div>
+          <div class="row"><span class="k">Major Ø</span><span class="v" id="tMajor">—</span></div>
+          <div class="row"><span class="k">Pitch</span><span class="v" id="tPitch">—</span></div>
+          <div class="row"><span class="k">Threads per inch</span><span class="v" id="tTpi">—</span></div>
+          <div class="row"><span class="k">Pitch Ø</span><span class="v" id="tPd">—</span></div>
+          <div class="row"><span class="k">Root Ø (external)</span><span class="v" id="tRoot">—</span></div>
+          <div class="row"><span class="k">Thread depth</span><span class="v" id="tDepth">—</span></div>
+          <div class="row"><span class="k">Blank Ø</span><span class="v" id="tBlank">—</span></div>
+          <div class="row"><span class="k">Infeed</span><span class="v" id="tInfeed">—</span></div>
+          <div class="row"><span class="k">First pass</span><span class="v" id="tFirst">—</span></div>
+          <div class="alarm tw-warn hidden" id="twWarn"></div>
+        </div>
+      </div>
+      <figure class="tw-fig" id="twFig"></figure>
+    </div>
+    <div class="row">
+      <button id="twBack" onclick="twGo(tw.step-1)">← Back</button>
+      <button class="primary" id="twNext" style="margin-left:auto" onclick="twGo(tw.step+1)">Next →</button>
+      <button id="twDlTurn" class="hidden" style="margin-left:auto" onclick="twDownload(true)">1. OD turning (.nc)</button>
+      <button class="primary" id="twDl" onclick="twDownload()">Download G-code (.nc)</button>
+    </div>
+  </section>
+
+  <!-- Tools -->
+  <section class="card" data-view="tools"><h2>Tools on the Lathe</h2>
+    <div class="tl-loaded"><span class="k">Loaded now</span><b id="tlLoaded">None</b><button id="tlUnload" onclick="tlLoad(null)" style="margin-left:auto">Unload</button></div>
+    <div class="alarm hidden" id="tlMsg"></div>
+    <h3 class="tl-h">My tools</h3>
+    <div id="tlList"></div>
+    <h3 class="tl-h">Add a tool</h3>
+    <div class="row"><span class="k">Tool type</span><select id="tlKind" onchange="tlPickRender()"><option>Threading</option><option>Turning</option><option>Facing</option><option>Grooving / parting</option><option>Boring</option><option>Drill</option><option>Form tool</option><option>Other</option></select></div>
+    <div id="tlPick">
+      <div class="tl-pick">
+        <div>
+          <div class="row"><span class="k">Holder</span><select id="tlHolderSel" onchange="tp.holder=this.value;tlPickRender();twRender()"></select></div>
+          <div class="row"><span class="k">Thread type</span><select id="tlFormSel" onchange="tp.form=this.value;tlPickRender()" style="flex:1;min-width:0"></select></div>
+          <p class="tw-q" style="margin-top:8px">Inserts that fit this holder</p>
+          <div class="tw-grid" id="tlInsTiles"></div>
+          <div class="row" style="margin-top:10px"><input id="tlPickNote" maxlength="60" placeholder="Note (optional)" style="flex:1;min-width:0"><button id="tlSave" onclick="tlSavePick(false)">Save</button><button id="tlSaveLoad" class="primary" onclick="tlSavePick(true)">Save and load</button></div>
+        </div>
+        <div>
+          <figure class="tw-fig" id="tlHolderFig"></figure>
+          <div class="sidenote" id="tlHolderInfo" style="margin:6px 0"></div>
+          <div class="tw-ins" id="tlInsCard"></div>
+        </div>
+      </div>
+    </div>
+    <div class="tl-add hidden" id="tlOther">
+      <input id="tlName" maxlength="40" placeholder="Name, e.g. CNMG 432 turning" style="flex:2 1 240px">
+      <input id="tlNote" maxlength="60" placeholder="Note (holder, position)" style="flex:1 1 160px">
+      <button class="primary" onclick="tlAdd()">Add tool</button>
+    </div>
+    <div class="sidenote" style="margin-top:8px">Saved on the ESP32, so every browser sees the same list, and it survives firmware and filesystem updates. This records what is loaded. It does not send a tool change to UCCNC.</div>
+  </section>
+
+  <!-- Job notes -->
+  <section class="card" data-view="threading"><h2>Job Notes</h2><textarea id="notes" placeholder="Turn OD to 1.000 in, face, cut M12 x 1.25…"></textarea><div class="row"><button class="primary" onclick="send({cmd:'notes',text:val('notes')})">Save notes</button></div></section>
+
+  </main></div>
+
+<!-- Header windows -->
+<dialog id="dlgWifi"><section class="card"><h2>Wi-Fi Connectivity <span class="tag" id="wifiTag">Connected</span><button class="dlg-x" aria-label="Close" onclick="$('dlgWifi').close()">✕</button></h2>
+    <div class="row"><span class="k">Signal Strength</span><span class="v" id="rssi">—</span></div>
+    <div class="row"><span class="k">IP Address</span><span class="v" id="ip">—</span></div>
+    <div class="row"><span class="k">Device Name</span><span class="v" id="host">—</span></div>
+    <div class="alarm info">ⓘ Dashboard is accessible over Wi-Fi at <a id="link" href="#" style="color:var(--cyan)">—</a></div>
+</section></dialog>
+<dialog id="dlgFw"><section class="card"><h2>Firmware Update (OTA)<button class="dlg-x" aria-label="Close" onclick="$('dlgFw').close()">✕</button></h2>
+    <div class="row"><span class="k">Firmware</span><span class="big" id="fw">—</span></div>
+    <div class="row"><span class="k">Web page</span><span class="big" id="webVer">—</span></div>
+    <div class="alarm hidden" id="fwOld"></div>
+    <div class="row"><span class="k">Available Version</span><span class="v" id="fwAvail">—</span><button onclick="checkUpdate()">Check</button></div>
+    <form id="otaForm"><input type="file" id="otaFile" accept=".bin"><button class="primary" type="submit" style="width:100%;margin-top:8px">⬆ Upload / Patch over Wi-Fi</button></form>
+    <div class="progress"><i id="otaBar" style="width:0"></i></div>
+    <div class="sidenote" id="otaMsg">Select firmware.bin from PlatformIO's .pio/build/esp32s3/ folder.</div>
+</section></dialog>
+<dialog id="dlgSet" class="wide"><section class="card"><h2>Settings<button class="dlg-x" aria-label="Close" onclick="$('dlgSet').close()">✕</button></h2>
+    <div class="set-grid">
+      <label>Wi-Fi SSID<input id="s_ssid"></label><label>Wi-Fi password<input id="s_pass" type="password" placeholder="(unchanged)"></label><label>Device name<input id="s_host"></label><label>Update manifest URL<input id="s_manifest" placeholder="http://…/manifest.json"></label>
+      <label>Spindle encoder PPR<input id="s_ppr" type="number"></label>
+      <label>X encoder P/R<input id="s_xPpr" type="number" min="1"></label><label>X travel per encoder rev (in, radial)<input id="s_xLead" type="number" min="0" step="any"></label><label>X shows diameter<select id="s_xDia"><option value="true">Yes</option><option value="false">No (radius)</option></select></label>
+      <label>Z encoder P/R<input id="s_zPpr" type="number" min="1"></label><label>Z travel per encoder rev (in)<input id="s_zLead" type="number" min="0" step="any"></label><label>Knob controls spindle<select id="s_knob"><option value="true">Yes</option><option value="false">No (web only)</option></select></label>
+      <label>Max RPM (gauge scale, knob and web limit)<input id="s_maxRpm" type="number" min="1"></label><label>Min RPM<input id="s_minRpm" type="number"></label><label>KP<input id="s_kp" type="number" step="0.0001"></label><label>KI<input id="s_ki" type="number" step="0.0001"></label>
+      <label>X soft min<input id="s_xMin" type="number" step="0.01"></label><label>X soft max<input id="s_xMax" type="number" step="0.01"></label><label>Z soft min<input id="s_zMin" type="number" step="0.01"></label><label>Z soft max<input id="s_zMax" type="number" step="0.01"></label>
+      <label>Invert X count<select id="s_xInv"><option value="false">No</option><option value="true">Yes</option></select></label><label>Invert Z count<select id="s_zInv"><option value="false">No</option><option value="true">Yes</option></select></label>
+      <label>RGB LED pin (applies after reboot)<select id="s_ledRgb"><option value="48">GPIO 48 (most boards)</option><option value="38">GPIO 38 (DevKitC-1 v1.1)</option><option value="-1">Off</option></select></label>
+      <label>Blue LED pin<select id="s_ledBlue"><option value="44">GPIO 44 (RX LED)</option><option value="43">GPIO 43 (TX LED)</option><option value="48">GPIO 48</option><option value="38">GPIO 38</option><option value="39">GPIO 39</option><option value="40">GPIO 40</option><option value="41">GPIO 41</option><option value="42">GPIO 42</option><option value="14">GPIO 14</option><option value="21">GPIO 21</option><option value="47">GPIO 47</option><option value="-1">Off</option></select></label>
+      <label>Display upside down<select id="s_dispFlip"><option value="false">No</option><option value="true">Yes</option></select></label>
+      <label>Blue LED lights when pin is<select id="s_blueLow"><option value="true">Low</option><option value="false">High</option></select></label>
+      <label>Check the LEDs<button type="button" onclick="ledTest()">Test LEDs</button></label>
+    </div>
+    <div class="sidenote" id="axRes" style="margin-top:6px"></div>
+    <div class="sidenote" style="margin-top:6px">Test LEDs uses the saved pins for 6 seconds: the RGB LED cycles red, green, blue and the blue LED flashes. Save first if you changed a pin.</div>
+    <div class="alarm hidden" id="setMsg" style="margin-top:10px"></div>
+    <div class="row" style="margin-top:10px"><button class="primary" onclick="saveSettings(false)">Save</button><button onclick="saveSettings(true)">Save &amp; reboot</button><span class="sidenote">Wi-Fi changes take effect after a reboot. With no network configured the ESP32 opens access point <b>ESP32-Lathe</b> (password lathe1234) at 192.168.4.1.</span></div>
+</section></dialog>
+<!-- Help window -->
+<dialog id="dlgHelp" class="help"><section class="card"><h2>Help and Wiring Guide<button class="dlg-x" aria-label="Close" onclick="$('dlgHelp').close()">✕</button></h2>
+  <div class="hp-tabs" id="hpTabs"></div>
+
+  <div class="hp-pane" data-hp="Start here">
+    <div class="alarm hp-danger"><div><b>Work safely.</b> Unplug the lathe and turn off the G540 supply before touching any wiring. The lathe's speed-pot terminals may be at mains potential, so treat them as live until you have proven otherwise. This system never replaces the E-stop and never drives the steppers.</div></div>
+    <h3>What this does</h3>
+    <p>Three Omron encoders watch the lathe. A 600 P/R encoder on each slide measures its real position for the DRO, and the 100 P/R spindle encoder measures speed and direction. The ESP32 shows all of it here and on a color display at the machine, records jobs and controls spindle speed. UCCNC still moves the axes.</p>
+    <div class="hp-grid">
+      <div class="hp-box"><b>X and Z position</b><br>600 P/R encoders, through 2.2 kΩ pull-ups on the interface board. Counted in hardware at 2400 counts per revolution</div>
+      <div class="hp-box"><b>Spindle speed and direction</b><br>100 P/R encoder. It also feeds the G540, so UCCNC can cut threads, and the ESP32 reads it through inverters</div>
+      <div class="hp-box"><b>Spindle control</b><br>Through a PC817 optocoupler that replaces the lathe's speed pot, with no electrical connection to the lathe controller</div>
+      <div class="hp-box"><b>At the machine</b><br>2.8 in color display with the DRO, RPM, target, loaded tool, alarms and status, plus two status LEDs</div>
+    </div>
+    <h3>The five rules that protect your hardware</h3>
+    <ol>
+      <li><b>3.3 V only on ESP32 pins.</b> Its pins are not 5 V tolerant. That is why the G540 taps go through inverters, and why the encoder pull-ups go to 3.3 V.</li>
+      <li><b>Use E6B2-CWZ6C encoders only</b> (NPN open collector). Voltage-output versions such as the E6B2-CWZ3E would put their supply voltage on the ESP32 pins.</li>
+      <li><b>Never join ESP32 ground to the lathe controller.</b> The PC817 is the only link between them.</li>
+      <li><b>Never power the encoders from G540 terminal 11.</b> That supply can reach 50 V and the encoders' limit is 24 V.</li>
+      <li><b>The lathe's pot voltage must be under 35 V.</b> That is the most the PC817's output can block. Measure it before connecting.</li>
+    </ol>
+    <h3>How to use this guide</h3>
+    <p>Follow the tabs from left to right: gather the <b>Parts</b>, study the <b>Wiring diagram</b>, the <b>Interface board</b> and the <b>G540</b> connections, work through <b>Build steps</b> and tick them off, then finish with <b>Setup and checks</b>.</p>
+    <p class="sidenote">Pin positions follow the ESP32-S3-DevKitC-1 header. Clone boards usually match, but check the printed labels on your board and wire to the GPIO number, not the position.</p>
+  </div>
+
+  <div class="hp-pane" data-hp="Parts">
+    <h3>Required</h3>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Qty</th><th>Part</th><th>Used for</th><th>Notes</th></tr></thead><tbody>
+      <tr><td>1</td><td>ESP32-S3 dev board, 44-pin</td><td>The controller</td><td>Needs at least 8 MB flash and octal PSRAM, such as N8R8 or N16R8</td></tr>
+      <tr><td>1</td><td>USB charger, 5 V 1 A or more, and cable</td><td>Powers the ESP32 and the display</td><td>Use a good one, because a noisy charger causes false counts</td></tr>
+      <tr><td>1</td><td>2.8 in ILI9341 SPI TFT display, 320 × 240</td><td>DRO, RPM and status at the machine</td><td>The common red-board module. Touch versions are fine; touch is not used</td></tr>
+      <tr><td>2</td><td>Omron E6B2-CWZ6C encoder, <b>600 P/R</b></td><td>X and Z position</td><td>Must be the CWZ6C (open collector). 6 mm shaft</td></tr>
+      <tr><td>1</td><td>Omron E6B2-CWZ6C encoder, <b>100 P/R</b></td><td>Spindle speed and direction</td><td>Skip if already fitted. Turns 1:1 with the spindle</td></tr>
+      <tr><td>1</td><td>12 V DC supply, 0.5 A or more</td><td>Powers the three encoders</td><td>Each encoder draws up to 100 mA. Any 5–24 V supply works</td></tr>
+      <tr><td>2</td><td>Flexible shaft coupling, 6 mm to your shaft</td><td>Drives each axis encoder</td><td>Jaw or bellows type</td></tr>
+      <tr><td>2</td><td>Encoder mounting bracket</td><td>Holds each axis encoder</td><td>Made to suit your lathe; see Build steps</td></tr>
+      <tr><td>4</td><td>2.2 kΩ resistor, 1/4 W</td><td>R1–R4, axis encoder pull-ups</td><td></td></tr>
+      <tr><td>3</td><td>2N3904 NPN transistor</td><td>Q1–Q3, spindle encoder inverters</td><td>Add 1 for the optional charge pump (Q4)</td></tr>
+      <tr><td>6</td><td>10 kΩ resistor, 1/4 W</td><td>R5–R10, inverter base and collector</td><td>Add 2 for the optional charge pump (R11, R12)</td></tr>
+      <tr><td>1</td><td>PC817 optocoupler, DIP-4</td><td>U1, isolates spindle control</td><td>See the Interface board tab</td></tr>
+      <tr><td>1</td><td>330 Ω resistor, 1/4 W</td><td>R13, PC817 LED current</td><td>Gives about 6 mA from 3.3 V</td></tr>
+      <tr><td>1</td><td>4.7 kΩ resistor, 1/4 W</td><td>R14, speed signal filter</td><td></td></tr>
+      <tr><td>1</td><td>10 µF electrolytic capacitor, 25 V or more</td><td>C1, speed signal filter</td><td>At least double your pot voltage</td></tr>
+      <tr><td>1 each</td><td>100 µF and 0.1 µF capacitors</td><td>C2, C3, steady the 3.3 V rail</td><td></td></tr>
+      <tr><td>1</td><td>10 kΩ linear potentiometer and knob</td><td>Speed knob</td><td>Must be linear (B taper)</td></tr>
+      <tr><td>1</td><td>Copper-clad board, FR-4, 150 × 100 mm, <b>double-sided</b></td><td>The interface board, milled from the DXFs</td><td>For example uxcell FR4 150 × 100 × 1.5 mm. Both sides are used, so don't strip either one</td></tr>
+      <tr><td>2</td><td>3 mm dowel pins, or two 1/8 in drill bits used shank down</td><td>Locate the board when you flip it to mill the second side</td><td>They go in the two alignment holes, through into the spoilboard</td></tr>
+      <tr><td>35 ways</td><td>Screw terminal blocks, 5.08 mm pitch</td><td>J1–J9 on the board</td><td>Every cable lands on a terminal, so it can be unplugged. 2- and 3-way blocks slot together to make longer ones</td></tr>
+      <tr><td>About 10 cm</td><td>Bare tinned copper wire, 0.5–0.6 mm (22–24 AWG)</td><td>Via pins V1–V15, which join the two sides</td><td>Resistor leg offcuts work just as well</td></tr>
+      <tr><td>1 set</td><td>Stranded hookup wire, 22–24 AWG, in several colors</td><td>Board, ESP32 and display wiring</td><td>The G540 manual requires stranded 14–24 AWG in its terminals</td></tr>
+      <tr><td>1</td><td>4-core cable, shielded if possible</td><td>Interface board to G540 terminals 1, 2, 3 and 12</td><td></td></tr>
+    </tbody></table></div>
+    <h3>Optional</h3>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Qty</th><th>Part</th><th>Why</th></tr></thead><tbody>
+      <tr><td>1</td><td>DB25 male-female breakout, plus 1 × 2N3904 and 2 × 10 kΩ</td><td>Taps the G540 charge pump so the DRO card shows <b>CNC Online</b></td></tr>
+      <tr><td>As needed</td><td>Shielded 5-core cable, 24 AWG</td><td>Extends encoder cables. The E6B2 comes with a fixed cable, typically 2 m</td></tr>
+    </tbody></table></div>
+    <h3>Recommended</h3>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Qty</th><th>Part</th><th>Why</th></tr></thead><tbody>
+      <tr><td>1</td><td>Plastic enclosure, with a window or cut-out for the display</td><td>Keeps chips and coolant off the electronics. Plastic also lets Wi-Fi through</td></tr>
+      <tr><td>2</td><td>Header socket strips, 22-way</td><td>Lets you swap the ESP32 without desoldering</td></tr>
+      <tr><td>2</td><td>Encoder guards or covers</td><td>Keep chips off the axis encoders and couplings</td></tr>
+      <tr><td>As needed</td><td>Heat-shrink, ferrules, cable ties, wire labels</td><td>Makes tidy joints that survive vibration, and later fault finding easier</td></tr>
+    </tbody></table></div>
+    <h3>Tools</h3>
+    <p>Soldering iron, multimeter, wire strippers, a small flat screwdriver, and a dial indicator for calibrating the axes.</p>
+    <p class="sidenote">Already on your machine and not in this list: G540, UC100, the PC running UCCNC, and the lathe's speed controller.</p>
+  </div>
+
+  <div class="hp-pane" data-hp="Wiring diagram">
+    <p class="sidenote">Select a row in the table to highlight that wire. A dot means wires are joined; wires crossing without a dot are not connected. Encoder cables are drawn in their real colors. The other colors are a suggested scheme. Encoder power is drawn as two buses for clarity; on the bench it lands on the interface board's terminals, as the Interface board tab shows.</p>
+    <div class="hp-fig" id="hpDiagram"></div>
+    <h3>Every connection</h3>
+    <div class="hp-scroll"><table class="hp-t hp-wires"><thead><tr><th>Color</th><th>Signal</th><th>From</th><th>Through</th><th>To</th></tr></thead><tbody id="hpWireRows"></tbody></table></div>
+    <button id="hpClear" onclick="hpPick(null)" style="margin-top:8px">Show all wires</button>
+    <h3>Encoder wire colors (Omron E6B2-CWZ6C)</h3>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Wire</th><th>Signal</th><th>Spindle encoder (100 P/R)</th><th>X and Z encoders (600 P/R)</th></tr></thead><tbody>
+      <tr><td><i class="hp-sw" style="background:#b45309"></i> Brown</td><td>+ supply</td><td>J3 +12V</td><td>J1 or J2 +12V</td></tr>
+      <tr><td><i class="hp-sw" style="background:#3b82f6"></i> Blue</td><td>0 V</td><td>J3 0V</td><td>J1 or J2 0V</td></tr>
+      <tr><td><i class="hp-sw" style="background:#0b0f19"></i> Black</td><td>A</td><td>J3 A</td><td>J1 or J2 A</td></tr>
+      <tr><td><i class="hp-sw" style="background:#f8fafc"></i> White</td><td>B</td><td>J3 B</td><td>J1 or J2 B</td></tr>
+      <tr><td><i class="hp-sw" style="background:#f97316"></i> Orange</td><td>Z (index)</td><td>J3 Z</td><td>Not used. Insulate the end</td></tr>
+      <tr><td>Shield</td><td></td><td>J3 0V/SH, with the blue wire</td><td>J1 or J2 0V/SH, with the blue wire. Leave the encoder end unconnected</td></tr>
+    </tbody></table></div>
+    <h3>Display connections (2.8 in ILI9341 module)</h3>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Display pin</th><th>ESP32 pin</th><th>Notes</th></tr></thead><tbody>
+      <tr><td>VCC</td><td>5V</td><td>The module has its own 3.3 V regulator. Leave its J1 jumper open on 5 V</td></tr>
+      <tr><td>GND</td><td>G</td><td></td></tr>
+      <tr><td>CS</td><td>GPIO 10</td><td></td></tr>
+      <tr><td>RESET</td><td>GPIO 8</td><td></td></tr>
+      <tr><td>DC (or RS)</td><td>GPIO 9</td><td></td></tr>
+      <tr><td>SDI (MOSI)</td><td>GPIO 11</td><td></td></tr>
+      <tr><td>SCK</td><td>GPIO 12</td><td></td></tr>
+      <tr><td>LED</td><td>3V3</td><td>Backlight, always on</td></tr>
+      <tr><td>SDO (MISO), T_CLK, T_CS, T_DIN, T_DO, T_IRQ</td><td>Not connected</td><td>Touch and read-back are not used</td></tr>
+    </tbody></table></div>
+    <div class="hp-grid">
+      <div class="hp-box"><b>What the display shows</b><div id="hpScreen"></div><div class="sidenote">Three full-width rows sized to read from across the shop: X, Z, then spindle RPM. The digits are about 13 mm tall on a 2.8-inch screen, half as tall again as before. Beside the RPM are the target, a speed bar with the target marked, and the loaded insert; an active alarm replaces the insert. Wi-Fi and CNC status are on the web page and the LEDs. Set <b>Display upside down</b> in Settings if you mount it inverted.</div></div>
+    </div>
+  </div>
+
+  <div class="hp-pane" data-hp="Interface board">
+    <p>The interface board sits between the cables and the ESP32. Every cable lands on a screw terminal (J1–J9), so anything can be unplugged. It is a two-sided board, 144 × 94 mm, designed to be milled on a desktop CNC from a 150 × 100 mm double-sided blank, with no plated holes. The picture shows the board from the component side: the top copper and its two traces, the bottom copper shown through the board, and every cable in its real color.</p>
+    <div class="hp-fig"><img src="hw/board_assembly.svg" alt="Interface board seen from the component side. The three encoders wire into J3, J1 and J2 on the left, the 12 V supply into J4 and the optional DB25 tap into J6. J5 at the top goes to the G540. J7 and J8 on the right go to the ESP32, and J9 in the isolated top right corner goes to the lathe speed pot." style="width:100%;min-width:900px;height:auto;display:block"></div>
+    <div class="hp-grid">
+      <div class="hp-box"><b>Reading the board</b>
+        <ul class="sidenote" style="margin:6px 0 0;padding-left:18px">
+          <li><b>Left edge:</b> the encoders and the optional DB25 tap: J3 spindle encoder, J6 DB25 tap, J1 X encoder, J2 Z encoder. Each encoder's shield goes in the <b>0V/SH</b> screw together with the blue wire.</li>
+          <li><b>Top edge:</b> J4 12 V supply in the corner, then J5, four wires to the G540 (terminals 2, 3, 1 and 12).</li>
+          <li><b>Right edge:</b> J7 and J8 to the ESP32. Pin names are printed beside each screw.</li>
+          <li><b>Top right corner:</b> U1 and J9, the isolated lathe side, behind a slot cut through the board.</li>
+          <li><b>Bottom copper:</b> every signal trace. Ground is all the copper left after the traces are isolated, and it reaches every GND and 0V/SH screw on its own.</li>
+          <li><b>Top copper:</b> two traces, orange for +12V and red for 3V3, which cross over the bottom traces (they replace the old wire links). The rest of the top is ground copper. Every hole that is not GND sits in its own small copper-free circle, so the isolation cut leaves one clean groove around each lead and no lead can touch the top ground. GND holes have no ring, because they are meant to touch it.</li>
+          <li><b>Gold rings:</b> via pins V1–V15. The holes are not plated, so each via is a bare wire soldered on both sides. V1–V7 join the top traces to the bottom; V8–V15 tie the top ground to the bottom ground.</li>
+          <li><b>Lathe corner:</b> neither side has any copper within 8 mm of the lathe side along the board surface, and nothing closer than 6 mm in a straight line through the 2 mm slot under U1.</li>
+          <li><b>Align pins:</b> two 3 mm holes on the centre line, used to line the board up when you flip it. One is near the bottom edge and one above the middle, so the board only goes onto the pins one way round: it cannot be fitted upside down by mistake.</li>
+        </ul>
+      </div>
+      <div class="hp-box"><b>Files for your CNC</b>
+        <p style="margin:6px 0 0"><b>Board revision <span class="hwrev"></span>.</b> <span class="sidenote">Every file name and every file carries the revision, so check that both sides come from the same one. The CHANGELOG lists what changed in each revision.</span></p>
+        <p class="sidenote" style="margin-top:6px">Click a name to download it from the ESP32. The same files are in the project's <b>hardware</b> folder, next to <b>make_pcb.py</b>, the script that draws and checks the board.</p>
+        <table class="hp-t"><tbody>
+          <tr><td><a class="hwf" data-f="bottom.dxf" style="color:var(--cyan);font-weight:700">interface_board_bottom.dxf</a></td><td><b>Side 1: mill this first.</b> The bottom copper, mirrored, because you see it from underneath with the copper facing up. Drill every hole from this side.</td></tr>
+          <tr><td><a class="hwf" data-f="top.dxf" style="color:var(--cyan);font-weight:700">interface_board_top.dxf</a></td><td><b>Side 2: mill this after flipping.</b> The top copper, not mirrored. Cut the slot and the outline from this side, last.</td></tr>
+          <tr><td><a class="hwf" data-f="bottom.svg" style="color:var(--cyan);font-weight:700">interface_board_bottom.svg</a></td><td>Side 1 as an SVG at true size in millimetres, for CAM programs that import SVG (Easel, Carbide Create, Inkscape). Same layers as the DXF: black is the copper that stays, light grey the CLEAR_POCKET areas, and the dark grey line is the groove the ISO_CENTER cut makes with a 0.5 mm cutter.</td></tr>
+          <tr><td><a class="hwf" data-f="top.svg" style="color:var(--cyan);font-weight:700">interface_board_top.svg</a></td><td>Side 2 as an SVG at true size.</td></tr>
+          <tr><td><a class="hwf" data-f="parts.dxf" style="color:var(--cyan);font-weight:700">interface_board_parts.dxf</a></td><td>Seen from the component side, with both coppers (COPPER_TOP, COPPER_BOTTOM) and part outlines and labels (SILK). For checking, not for milling.</td></tr>
+          <tr><td><a class="hwf" data-f="preview.svg" style="color:var(--cyan);font-weight:700">interface_board_preview.svg</a></td><td>The colored board picture. Not to scale, so don't mill from it.</td></tr>
+          <tr><td><a class="hwf" data-f="gerber.zip" style="color:var(--cyan);font-weight:700">interface_board_gerber.zip</a></td><td>Gerber (top copper, bottom copper, outline) and Excellon drill files, for PCB programs such as FlatCAM. These are not DXFs, so a DXF program won't open them.</td></tr>
+          <tr><td><a class="hwf" data-f="report.txt" style="color:var(--cyan);font-weight:700">interface_board_report.txt</a></td><td>The design check results, the parts list, and every via and alignment hole position.</td></tr>
+        </tbody></table>
+        <p class="sidenote">Both mill files have the same layers, and each layer is one machining operation, so nothing has to be interpreted: <b>ISO_CENTER</b> (the cutter's centre lines for a 0.5 mm cutter: follow them with no offset), <b>CLEAR_POCKET</b> (closed areas to pocket out; they run 1 mm past the board edge), <b>COPPER_REF</b> (the copper that stays, with its holes drawn too: for checking only, never cut it), <b>DRILL_0P8</b> and <b>DRILL_1P3</b> (holes at true size, one layer per drill), <b>ALIGN_3P0</b> (the two alignment holes), <b>SLOT</b> (the 2 mm isolation slot, a closed shape to pocket) and <b>OUTLINE</b> (the board edge, a plain rectangle). <b>NOTES</b> is text. Units are millimetres (the file says so in its header), and the origin is the board's bottom-left corner.</p>
+      </div>
+    </div>
+    <h3>Milling the board</h3>
+    <ol class="sidenote" style="padding-left:20px">
+      <li><b>Set up.</b> Use a fresh, flat 150 × 100 mm double-sided blank; don't strip either side. Stick it to a flat spoilboard with double-sided tape, and probe or surface the area if your machine can. The board is 144 × 94 mm, centred with 3 mm spare all round. The DXF origin is the board corner, so set your work zero 3 mm in from the blank's corner, and note it: you keep the same X and Y zero for both sides.</li>
+      <li><b>Side 1: alignment holes.</b> Load the <b>…_bottom.dxf</b> file and drill the two ALIGN_3P0 holes, 3 mm, right through the blank and about 5 mm into the spoilboard. They sit on the board's vertical centre line, the line you flip the board around, one near the bottom edge and one above the middle.</li>
+      <li><b>Side 1: copper.</b> Engrave <b>along</b> the ISO_CENTER lines, with no offset (an "on the line", engrave or follow-path operation), about 0.1 mm deep, with a cutter 0.5 mm wide or less at that depth (a 30° V-bit, or a 0.3–0.5 mm end mill). The lines are already the centre line for a 0.5 mm cutter, so a 0.5 mm cutter leaves exactly the copper drawn in COPPER_REF; a narrower one leaves every pad and trace a little larger, plus a thin strip in the middle of some gaps, which the pockets take out. Every copper shape has its own closed line and no two lines come closer than the cutter width, so your CAM should show no merged loops, bubbles or bone shapes; if it does, it is offsetting the lines or the cutter is set wider than 0.5 mm. Then pocket the <b>CLEAR_POCKET</b> areas 0.1–0.15 mm deep with a 0.8–1.6 mm end mill (any size: the CAM offsets for its own tool), to take the copper off completely. Do not cut COPPER_REF; it is only there to compare against.</li>
+      <li><b>Side 1: drill.</b> Drill the DRILL_0P8 circles at 0.8 mm (resistors, transistors, U1, capacitors and vias) and the DRILL_1P3 circles at 1.3 mm (screw terminals). Peck drill if your spindle is slow. Drilling from this side puts every hole in the middle of its bottom pad.</li>
+      <li><b>Flip.</b> Lift the board off and push a 3 mm pin (a dowel, or a 1/8 in drill bit shank down) into each alignment hole in the spoilboard. Leave them standing about 1 mm proud, less than the board thickness. Turn the board over <b>left to right</b>, so the top edge stays at the top, and press it down over the pins. Tape it down, then re-probe Z on the new surface. Keep the same X and Y zero.</li>
+      <li><b>Side 2: copper.</b> Load the <b>…_top.dxf</b> file. Engrave ISO_CENTER and pocket CLEAR_POCKET exactly as on side 1. Don't drill again. Check that the isolation rings are centred on the holes. If they are all off by the same amount, the zero has moved.</li>
+      <li><b>Side 2: slot, then outline.</b> First pocket the <b>SLOT</b> shape right through, about 1.7 mm deep for 1.5 mm stock, with an end mill of 1.5 mm or less (1/16 in is fine): it is 2 mm wide and runs out through the top edge beside U1, and it is on its own layer so a wide outline cutter never has to squeeze into it. Then cut the <b>OUTLINE</b> rectangle right through, on the outside of the line, with a 1.6–3 mm end mill. Leave tabs. If your blank is already 150 × 100, you can skip the outline, but always cut the slot.</li>
+      <li>Deburr, scrub both sides with a scouring pad, and check with a meter that no two neighbouring traces touch on either side, and that no lead hole touches the top ground copper.</li>
+      <li>Optional: a coat of flux or solder resist keeps the copper bright.</li>
+    </ol>
+    <p class="sidenote"><b>Why CLEAR_POCKET matters:</b> the ISO_CENTER cut only makes a narrow groove around each copper shape. Copper that belongs to no shape, such as the 8 mm zone around the lathe side and the edge margin, would otherwise stay on the board as loose islands, and an island can bridge the lathe side to the ESP32 side across two thin grooves. Always pocket the CLEAR_POCKET areas, especially in the top right corner. The pocket edges touch the copper, so the pocket's first pass runs in the same groove the ISO cut made; that is intended, and harmless. If your CAM can clear everything that is not copper on its own (for example FlatCAM's non-copper clearing from the Gerbers), that does the same job.</p>
+    <p class="sidenote">The side 1 file is mirrored left to right because you look at the bottom from underneath: J1–J6 appear on the <b>right</b> and J7–J9 on the left. Flipping the board left to right around the alignment pins brings it back, so the side 2 file is not mirrored and the same zero works for both.</p>
+    <h3>Do the pull-up resistors need to be there with short cables?</h3>
+    <div class="hp-grid">
+      <div class="hp-box">
+        <p>Yes, but not because of the cable length. The E6B2-CWZ6C has <b>NPN open-collector</b> outputs: its transistor can pull a line down to 0 V, but nothing inside the encoder ever drives the line high. Without a pull-up, a line that is not being pulled low just floats, and the ESP32 reads noise. The pull-up is what makes the "high" half of every pulse.</p>
+        <p>The ESP32 has its own internal pull-ups, about 45 kΩ. With 4–5 inch cables those would probably work. The board uses 2.2 kΩ anyway, for two reasons:</p>
+        <ul style="padding-left:18px"><li><b>Noise.</b> The encoders sit next to stepper motors and their drivers, which switch amps of current very fast. A 2.2 kΩ line is 20 times stiffer than 45 kΩ, so induced spikes don't become false counts.</li>
+        <li><b>Speed.</b> A weak pull-up makes slow rising edges. At 600 P/R the X and Z lines can switch tens of thousands of times a second during a rapid, and slow edges cost counts.</li></ul>
+        <p class="sidenote">Long cables make both problems worse, which is why you hear pull-ups talked about for long runs, but the open-collector output needs one at any length. The spindle lines have their pull-ups too: the G540 inputs pull them up, and R6, R8 and R10 pull up the inverted copies the ESP32 reads.</p>
+      </div>
+    </div>
+    <h3>Circuit diagram</h3>
+    <p class="sidenote">The same board as a circuit, for checking and fault finding. Each resistor is drawn between the two points it connects. The <span style="color:#ef4444">3V3</span>, <span style="color:#f59e0b">+12V</span> and ground symbols mean "connect to that rail", so all the ground symbols are one connection.</p>
+    <div class="hp-fig" id="hpBoard"></div>
+    <h3>Where each part goes</h3>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Part</th><th>Value</th><th>One end</th><th>Other end</th></tr></thead><tbody id="hpParts"></tbody></table></div>
+    <h3>Ground for every cable</h3>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Cable</th><th>Ground or 0 V core</th><th>Lands on</th><th>Shield</th></tr></thead><tbody>
+      <tr><td>X encoder</td><td>Blue</td><td>J1 0V</td><td>J1 0V/SH, with the blue wire. Encoder end unconnected</td></tr>
+      <tr><td>Z encoder</td><td>Blue</td><td>J2 0V</td><td>J2 0V/SH, with the blue wire. Encoder end unconnected</td></tr>
+      <tr><td>Spindle encoder</td><td>Blue</td><td>J3 0V</td><td>J3 0V/SH, with the blue wire. Encoder end unconnected</td></tr>
+      <tr><td>12 V supply</td><td>− terminal</td><td>J4 −</td><td></td></tr>
+      <tr><td>To the G540</td><td>A fourth core</td><td>J5 T12 to G540 terminal 12</td><td>If shielded, GND at the board end only</td></tr>
+      <tr><td>DB25 tap (optional)</td><td>DB25 pin 18</td><td>J6 GND</td><td></td></tr>
+      <tr><td>To the ESP32</td><td>One wire</td><td>J8 GND to an ESP32 G pin</td><td></td></tr>
+      <tr><td>PC817 input</td><td>U1 pin 2</td><td>The ground copper on the board</td><td></td></tr>
+      <tr><td>To the lathe controller</td><td><b>None</b></td><td>J9 HIGH, WIPER and LOW only</td><td><b>Never connect to ground</b></td></tr>
+      <tr><td>Display and knob</td><td>One wire each</td><td>Straight to ESP32 G pins</td><td></td></tr>
+    </tbody></table></div>
+    <p class="sidenote">All grounds meet on the board's ground copper, and one wire (J8 GND) takes it to the ESP32. That makes encoder 0 V, G540 terminal 12 and ESP32 ground one common ground, which the encoders and the inverters need. The encoder supply current returns through J4, not through the ESP32.</p>
+    <h3>Build details</h3>
+    <div class="hp-grid">
+      <div class="hp-box"><b>Axis encoder input (build 4)</b>
+        <svg viewBox="0 0 400 190" role="img" aria-label="Axis encoder input: encoder output pulled up to 3.3 volts through 2.2 kilohms, straight to the GPIO">
+          <rect x="10" y="60" width="120" height="70" rx="6" fill="#1f2937" stroke="#475569"/><text x="70" y="88" text-anchor="middle" font-weight="700">E6B2</text><text x="70" y="106" text-anchor="middle" style="font-size:11px;fill:#8fa1c2">600 P/R, A or B</text>
+          <path d="M130 120H300" stroke="#0b0f19" stroke-width="3"/><text x="136" y="114" style="font-size:11px;fill:#8fa1c2">black A or white B</text>
+          <circle cx="240" cy="120" r="4" fill="#e6edf7"/><path d="M240 120V90" stroke="#94a3b8" stroke-width="2"/><rect x="230" y="40" width="20" height="50" fill="#d6b98c"/><text x="258" y="70">2.2 kΩ</text><path d="M240 40V16" stroke="#ef4444" stroke-width="3"/><text x="250" y="22" style="fill:#ef4444">3V3</text>
+          <path d="M300 120H340" stroke="#38bdf8" stroke-width="3"/><text x="345" y="124">GPIO</text>
+          <text x="10" y="166" style="font-size:12px;fill:#8fa1c2">Encoder blue to GND, brown to +12V</text>
+        </svg>
+        <div class="sidenote">The encoder output only pulls the line low, so the GPIO never sees more than 3.3 V, whatever the encoder supply is.</div>
+      </div>
+      <div class="hp-box"><b>Inverter (build 3, or 4 with the charge pump)</b>
+        <svg viewBox="0 0 400 210" role="img" aria-label="Inverter circuit using a 2N3904 transistor and two 10 kilohm resistors">
+          <path d="M20 110H70" stroke="#facc15" stroke-width="3"/><rect x="70" y="100" width="58" height="20" rx="3" fill="#d6b98c"/><text x="99" y="115" text-anchor="middle" style="fill:#1e293b;font-size:12px">10 kΩ</text>
+          <path d="M128 110H172" stroke="#94a3b8" stroke-width="2"/><circle cx="195" cy="110" r="26" fill="none" stroke="#94a3b8" stroke-width="2"/><path d="M180 92V128" stroke="#e6edf7" stroke-width="3"/><path d="M172 110H180M180 102L208 88V60M180 118L208 132V170" stroke="#e6edf7" stroke-width="2" fill="none"/><path d="M204 127L208 132L202 133" stroke="#e6edf7" stroke-width="2" fill="none"/>
+          <path d="M208 60V50" stroke="#94a3b8" stroke-width="2"/><rect x="198" y="18" width="20" height="32" fill="#d6b98c"/><text x="226" y="38" style="font-size:12px">10 kΩ</text>
+          <path d="M208 18V4" stroke="#ef4444" stroke-width="3"/><text x="218" y="13" style="fill:#ef4444">3V3</text>
+          <path d="M208 74H320" stroke="#facc15" stroke-width="3"/><circle cx="208" cy="74" r="4" fill="#e6edf7"/><text x="325" y="78">To GPIO</text>
+          <path d="M208 170V186" stroke="#64748b" stroke-width="3"/><text x="218" y="184" style="font-size:12px;fill:#8fa1c2">GND</text>
+          <text x="20" y="100">Signal in</text>
+          <g transform="translate(300 118)"><path d="M0 40A20 20 0 0 1 40 40Z" fill="#334155" stroke="#94a3b8"/><path d="M8 40V70M20 40V70M32 40V70" stroke="#cbd5e1" stroke-width="2"/><text x="8" y="84" text-anchor="middle" style="font-size:12px">E</text><text x="20" y="84" text-anchor="middle" style="font-size:12px">B</text><text x="32" y="84" text-anchor="middle" style="font-size:12px">C</text><text x="20" y="32" text-anchor="middle" style="font-size:11px;fill:#8fa1c2">flat face</text></g>
+        </svg>
+        <div class="sidenote">The G540 pulls its inputs up above 3.3 V, so the spindle signals can't go straight to the ESP32. The transistor turns them into a clean 0–3.3 V signal, inverted, which does not affect counting.</div>
+      </div>
+    </div>
+    <h3>What is the PC817?</h3>
+    <div class="hp-grid">
+      <div class="hp-box">
+        <svg viewBox="0 0 400 220" role="img" aria-label="Inside the PC817: an infrared LED on pins 1 and 2 shines across an insulating gap onto a phototransistor on pins 4 and 3">
+          <rect x="110" y="20" width="180" height="180" rx="10" fill="#1e293b" stroke="#94a3b8"/><path d="M200 30V190" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6 4"/><text x="200" y="214" text-anchor="middle" style="font-size:11px;fill:#f59e0b">insulating gap, 5000 V</text>
+          <path d="M60 60H150V90M150 130V160H60" stroke="#fb7185" stroke-width="2.5" fill="none"/><path d="M136 90H164L150 112Z" fill="#fb7185"/><path d="M136 114H164" stroke="#fb7185" stroke-width="2.5"/><path d="M150 112V130" stroke="#fb7185" stroke-width="2.5"/>
+          <path d="M170 98L190 104M170 110L190 116" stroke="#fde68a" stroke-width="2"/><path d="M186 100L190 104L185 106M186 112L190 116L185 118" stroke="#fde68a" stroke-width="2" fill="none"/>
+          <path d="M226 88V132" stroke="#e6edf7" stroke-width="3"/><path d="M226 98L250 84V60H340M226 122L250 136V160H340" stroke="#fdba74" stroke-width="2.5" fill="none"/><path d="M245 131L250 136L243 137" stroke="#fdba74" stroke-width="2" fill="none"/>
+          <text x="56" y="56" text-anchor="end" style="font-size:12px">1</text><text x="56" y="164" text-anchor="end" style="font-size:12px">2</text><text x="346" y="64" style="font-size:12px">4</text><text x="346" y="164" style="font-size:12px">3</text>
+          <text x="20" y="40" style="font-size:12px;fill:#fb7185">LED (ESP32 side)</text><text x="260" y="40" style="font-size:12px;fill:#fdba74">Transistor (lathe side)</text>
+          <text x="20" y="190" style="font-size:11px;fill:#8fa1c2">1 anode · 2 cathode</text><text x="262" y="190" style="font-size:11px;fill:#8fa1c2">4 collector · 3 emitter</text>
+        </svg>
+      </div>
+      <div class="hp-box">
+        <p>The PC817 is an <b>optocoupler</b>: an infrared LED and a light-sensitive transistor sealed in one small 4-pin chip, facing each other across an insulating gap. The ESP32 lights the LED; the light switches the transistor on. No current crosses the gap, so the lathe controller and the ESP32 are never electrically connected.</p>
+        <p><b>How it sets the speed:</b> the ESP32 flashes the LED 2000 times a second, on for a fraction of each cycle. The transistor connects HIGH to WIPER for the same fraction, and the 4.7 kΩ and 10 µF smooth that into a steady voltage at WIPER, just as the pot's wiper would have. More on-time means a higher voltage and a faster spindle. If the ESP32 stops or restarts, the LED goes dark and the 4.7 kΩ pulls WIPER down to LOW, so the spindle slows to a stop.</p>
+        <table class="hp-t"><tbody>
+          <tr><td>Isolation</td><td>5000 V rms between the two sides</td></tr>
+          <tr><td>LED current here</td><td>About 6 mA through 330 Ω (50 mA maximum)</td></tr>
+          <tr><td>Transistor maximum</td><td>35 V across pins 4 and 3, 50 mA</td></tr>
+          <tr><td>Pin 1</td><td>Marked by a dot or notch on the package</td></tr>
+        </tbody></table>
+      </div>
+      <div class="hp-box"><b>Spindle control circuit</b>
+        <svg viewBox="0 0 440 210" role="img" aria-label="PC817 optocoupler with 330 ohm input resistor and a 4.7 kilohm and 10 microfarad filter on the output">
+          <path d="M6 66H50" stroke="#fb7185" stroke-width="3"/><text x="6" y="56" style="font-size:12px">J8 GPIO 2</text><rect x="50" y="56" width="52" height="20" rx="3" fill="#d6b98c"/><text x="76" y="71" text-anchor="middle" style="fill:#1e293b;font-size:12px">330 Ω</text><path d="M102 66H140" stroke="#fb7185" stroke-width="3"/>
+          <path d="M6 126H140" stroke="#64748b" stroke-width="3"/><text x="6" y="146" style="font-size:12px;fill:#8fa1c2">J8 GND</text>
+          <rect x="140" y="46" width="90" height="100" rx="5" fill="#1e293b" stroke="#94a3b8"/><circle cx="150" cy="56" r="3" fill="#94a3b8"/><text x="185" y="100" text-anchor="middle">PC817</text>
+          <text x="148" y="71" style="font-size:11px;fill:#8fa1c2">1</text><text x="148" y="131" style="font-size:11px;fill:#8fa1c2">2</text><text x="222" y="71" text-anchor="end" style="font-size:11px;fill:#8fa1c2">4</text><text x="222" y="131" text-anchor="end" style="font-size:11px;fill:#8fa1c2">3</text>
+          <path d="M185 10V36M185 156V204" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6 4"/><text x="192" y="22" style="font-size:11px;fill:#f59e0b">Isolation barrier</text>
+          <path d="M230 66H400" stroke="#fdba74" stroke-width="3"/><text x="404" y="70" style="font-size:12px;fill:#fdba74">HIGH</text>
+          <path d="M230 126H400" stroke="#fef08a" stroke-width="3"/><text x="404" y="130" style="font-size:12px;fill:#fef08a">WIPER</text>
+          <circle cx="280" cy="126" r="4" fill="#e6edf7"/><circle cx="350" cy="126" r="4" fill="#e6edf7"/>
+          <path d="M280 126V146M280 172V190H400M350 126V152M350 162V190" stroke="#a8a29e" stroke-width="2.5" fill="none"/><rect x="270" y="146" width="20" height="26" fill="#d6b98c"/><text x="296" y="164" style="font-size:11px">4.7 kΩ</text>
+          <path d="M338 152H362M338 160H362" stroke="#e6edf7" stroke-width="3"/><text x="366" y="150" style="font-size:11px">10 µF</text><text x="341" y="148" style="font-size:12px">+</text>
+          <text x="404" y="194" style="font-size:12px;fill:#a8a29e">LOW</text>
+        </svg>
+        <div class="sidenote">HIGH, WIPER and LOW go to J9. The milled board keeps 8 mm of bare board around the J9 side along the surface, and at least 6 mm in a straight line through the slot under U1. Do not run any wire across that gap.</div>
+        <div class="sidenote" style="margin-top:6px"><b>Before you connect J9, measure the pot circuit.</b> With the lathe powered and the pot still in place, measure DC and AC volts between HIGH and LOW, and between each of them and mains earth. HIGH to LOW must be under 25 V, the rating of C1 (it is usually 5–12 V). If either pin reads anything against earth, the whole pot circuit floats at mains potential, which the PC817 and the gap are designed for: still treat J9, R14, C1 and the lathe side of U1 as live, keep them inside the controller enclosure, and never let a lead, wire or tool bridge the gap. If HIGH to LOW is more than 25 V, or you cannot measure it, do not connect the board.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hp-pane" data-hp="G540">
+    <h3>Why the G540 is still connected</h3>
+    <p>The ESP32 does not need the G540, but UCCNC does. Threading with G33, including every program from the Thread Wizard, needs UCCNC to see the spindle encoder through the G540's inputs. So the spindle encoder's signals go to both: to the G540 for UCCNC, and through inverters to the ESP32. The X and Z encoders go only to the ESP32. The step and direction pins are no longer tapped.</p>
+    <div class="hp-fig" id="hpG540"></div>
+    <h3>12-pin main terminal block</h3>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Terminal</th><th>G540 function</th><th>In this project</th></tr></thead><tbody>
+      <tr class="hp-use"><td>1</td><td>Input 1 (DB25 pin 10)</td><td><b>Spindle index (Z)</b>: from J5 T1. Encoder orange</td></tr>
+      <tr class="hp-use"><td>2</td><td>Input 2 (DB25 pin 11)</td><td><b>Spindle A</b>: from J5 T2. Encoder black</td></tr>
+      <tr class="hp-use"><td>3</td><td>Input 3 (DB25 pin 12)</td><td><b>Spindle B</b>: from J5 T3. Encoder white</td></tr>
+      <tr><td>4</td><td>Input 4 (DB25 pin 13)</td><td>Not used. Free for a limit switch</td></tr>
+      <tr><td>5</td><td>Output 1 (DB25 pin 17)</td><td>Not used</td></tr>
+      <tr><td>6</td><td>Output 2 (DB25 pin 1)</td><td>Not used</td></tr>
+      <tr><td>7</td><td>VFD ground</td><td>Not used</td></tr>
+      <tr><td>8</td><td>VFD output</td><td>Not used</td></tr>
+      <tr><td>9</td><td>VFD +10 V</td><td>Not used</td></tr>
+      <tr><td>10</td><td>Disable input (E-stop)</td><td><b>Leave your E-stop as it is.</b> Not touched by this project</td></tr>
+      <tr class="hp-warn"><td>11</td><td>Supply +, 18–50 V</td><td><b>Never connect anything from this project.</b> It would destroy the encoders and the ESP32</td></tr>
+      <tr class="hp-use"><td>12</td><td>Supply ground</td><td><b>Common ground</b>: from J5 T12</td></tr>
+    </tbody></table></div>
+    <h3>DB25 connector</h3>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Pin</th><th>G540 function</th><th>In this project</th></tr></thead><tbody>
+      <tr class="hp-use"><td>16</td><td>Charge pump</td><td>Optional tap to J6, for CNC Online</td></tr>
+      <tr class="hp-use"><td>18</td><td>Ground</td><td>Optional tap to J6 GND, with pin 16</td></tr>
+      <tr><td>All others</td><td>Step, direction, inputs, outputs, fault</td><td>Pass straight through the breakout. Not tapped</td></tr>
+    </tbody></table></div>
+    <h3>UCCNC settings</h3>
+    <p>This project does not change UCCNC. If UCCNC already reads the spindle encoder, keep its input settings: the index on input 1 (port 1, pin 10), A on input 2 (pin 11) and B on input 3 (pin 12), as the G540 maps them. Check UCCNC's input diagnostics after wiring: those three inputs must still change as you turn the chuck by hand.</p>
+    <p class="sidenote">From the Geckodrive G540 manual Rev 8. Use stranded 14–24 AWG wire in the G540 terminals, and do not fit wire plugs.</p>
+  </div>
+
+  <div class="hp-pane" data-hp="Build steps">
+    <div class="row"><span id="hpProgress" class="sidenote"></span><button onclick="hpReset()" style="margin-left:auto">Clear ticks</button></div>
+    <div id="hpSteps"></div>
+  </div>
+
+  <div class="hp-pane" data-hp="Setup and checks">
+    <h3>First connection</h3>
+    <ol>
+      <li>If the board can't join a network, it opens access point <b>ESP32-Lathe</b> (password <b>lathe1234</b>). Join it and go to <b>http://192.168.4.1</b>. The blue LED flashes very fast while the board is in this mode.</li>
+      <li>Open <b>Settings</b>, enter your Wi-Fi name and password, then choose <b>Save &amp; reboot</b>.</li>
+      <li>Reconnect at <b>http://esp32-lathe.local</b>, or at the address on the display.</li>
+    </ol>
+    <h3>Settings to enter</h3>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Setting</th><th>Start with</th><th>Notes</th></tr></thead><tbody>
+      <tr><td>X encoder P/R</td><td>600</td><td>The DRO counts 4 edges per pulse, so 2400 counts per revolution</td></tr>
+      <tr><td>X travel per encoder rev</td><td>Your cross-slide screw lead, in inches</td><td>Radial travel. For example 0.1000 for 10 TPI, 0.0787 for a 2 mm lead. Multiply by any gearing between screw and encoder</td></tr>
+      <tr><td>X shows diameter</td><td>Yes</td><td>The DRO then doubles the cross-slide travel</td></tr>
+      <tr><td>Z encoder P/R</td><td>600</td><td></td></tr>
+      <tr><td>Z travel per encoder rev</td><td>Your leadscrew lead, in inches</td><td>For example 0.0833 for 12 TPI</td></tr>
+      <tr><td>Spindle encoder PPR</td><td>100</td><td>Must match the spindle encoder's P/R</td></tr>
+      <tr><td>Display upside down</td><td>No</td><td>Turns the display picture over, if it is mounted inverted</td></tr>
+      <tr><td>Max RPM</td><td>500 for first tests</td><td>Raise to your lathe's limit once speed control is proven. Also scales the gauge and the display's speed bar</td></tr>
+      <tr><td>Min RPM</td><td>60</td><td></td></tr>
+      <tr><td>KP / KI</td><td>0.0004 / 0.0012</td><td>Lower them if the speed hunts</td></tr>
+      <tr><td>Soft limits</td><td>To suit your travel</td><td>Used only for the alarm. UCCNC's limits still apply</td></tr>
+    </tbody></table></div>
+    <h3>Calibrate each axis</h3>
+    <ol>
+      <li>Mount a dial indicator against the slide, then zero both the indicator and the DRO.</li>
+      <li>Move the slide 1.000 in by the indicator, always approaching from the same direction.</li>
+      <li>Read the DRO. If it differs, set travel per encoder rev to <b>old value × indicator ÷ DRO</b>. For X shown as diameter, compare the DRO with twice the indicator reading.</li>
+      <li>Repeat until the readings agree within a few counts. One count is travel per rev ÷ 2400, which is 0.00004 in for a 0.1 in lead.</li>
+    </ol>
+    <h3>Prove each function</h3>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Test</th><th>You should see</th><th>If not</th></tr></thead><tbody>
+      <tr><td>Power up the ESP32</td><td>The display shows the DRO screen within a few seconds</td><td>See Display in Troubleshooting</td></tr>
+      <tr><td>Turn the X and Z handwheels, or jog slowly</td><td>The DRO follows on the page and the display, and the RGB LED flashes blue</td><td>Wrong way: use Invert X or Z count. No change: check encoder power and the pull-ups</td></tr>
+      <tr><td>Move a slide away and back to the same indicator reading</td><td>The DRO returns to the same value, within one or two counts</td><td>Drift means a slipping coupling or electrical noise</td></tr>
+      <tr><td>Run a fast rapid back and forth 10 times, then return home</td><td>The DRO still matches the indicator</td><td>Lost counts mean noise or a weak pull-up. Check R1–R4 and the shields</td></tr>
+      <tr><td>Turn the chuck by hand with the lathe off</td><td>Direction and RPM react</td><td>Check the spindle encoder supply and Q1–Q3</td></tr>
+      <tr><td>Turn the chuck by hand and watch UCCNC's input diagnostics</td><td>Inputs 1, 2 and 3 still change state</td><td>The inverter taps may be loading the G540 inputs. Disconnect R5, R7 and R9 one at a time to find which</td></tr>
+      <tr><td>Set a Target of 200 RPM</td><td>The spindle runs near 200, and the page and display agree</td><td>Check the PC817 wiring, or see Troubleshooting</td></tr>
+      <tr><td>Check RPM with a handheld tachometer</td><td>The reading matches</td><td>Check Spindle encoder PPR and that the encoder turns 1:1 with the spindle</td></tr>
+      <tr><td>Reboot the ESP32 while the spindle runs at low speed</td><td>The spindle slows to a stop while it restarts</td><td>Stop and check the speed control wiring before going further</td></tr>
+      <tr><td>Start UCCNC, if you fitted the charge pump tap</td><td><b>CNC Online</b> on the page, and a green CNC dot on the display</td><td>Check the DB25 pin 16 tap and Q4</td></tr>
+      <tr><td>Press <b>Test LEDs</b> in Settings</td><td>RGB cycles colors and blue flashes</td><td>See the LED pin settings</td></tr>
+    </tbody></table></div>
+    <h3>What the LEDs mean</h3>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>LED</th><th>Pattern</th><th>Meaning</th></tr></thead><tbody>
+      <tr><td>RGB</td><td>Green fading in and out</td><td>Idle</td></tr>
+      <tr><td>RGB</td><td>Blue flashing</td><td>A slide or the spindle is moving, or a recording or playback is running</td></tr>
+      <tr><td>Blue</td><td>Solid</td><td>On Wi-Fi</td></tr>
+      <tr><td>Blue</td><td>Slow flash</td><td>Looking for Wi-Fi</td></tr>
+      <tr><td>Blue</td><td>Very fast flash</td><td>Wi-Fi not found. The access point is available</td></tr>
+    </tbody></table></div>
+  </div>
+
+  <div class="hp-pane" data-hp="Troubleshooting">
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Problem</th><th>Likely cause</th><th>What to do</th></tr></thead><tbody>
+      <tr><td>Page will not load</td><td>Wrong network, or the page was not uploaded</td><td>Read the address on the display. If it shows AP, join the ESP32-Lathe access point. Run Upload Filesystem Image if the page is missing</td></tr>
+      <tr><td>Display stays dark</td><td>No backlight power</td><td>Check LED goes to 3V3 and VCC to 5V. If VCC is on 3V3 instead, the module's J1 jumper must be bridged</td></tr>
+      <tr><td>Display lit but white or blank</td><td>Display signals wired wrong</td><td>Check CS to 10, RESET to 8, DC to 9, SDI (MOSI) to 11 and SCK to 12. SDO (MISO) stays unconnected</td></tr>
+      <tr><td>Display picture upside down</td><td>Mounting</td><td>Set Display upside down in Settings</td></tr>
+      <tr><td>An axis never changes</td><td>No encoder power, a missing pull-up, or a wrong pin</td><td>Measure 12 V between J1 or J2 +12V and 0V. Black and white should each read either about 0 V or about 3.3 V at the ESP32 pin, and change as you turn the encoder by hand</td></tr>
+      <tr><td>Axis counts the wrong way</td><td>Normal, depending on mounting</td><td>Use Invert X or Z count in Settings</td></tr>
+      <tr><td>Axis moves only one count back and forth</td><td>A and B on the same pin, or one is dead</td><td>Check black and white go to two different GPIOs, each with its own pull-up</td></tr>
+      <tr><td>Wrong distance</td><td>Wrong travel per encoder rev, or X diameter setting</td><td>Calibrate with a dial indicator, as on the Setup and checks tab</td></tr>
+      <tr><td>DRO drifts or jumps</td><td>Slipping coupling, or electrical noise</td><td>Tighten the coupling. Ground each shield at the board only, and route encoder cables away from motor and mains wiring</td></tr>
+      <tr><td>DRO differs from UCCNC after a direction change</td><td>Backlash</td><td>Normal. The encoder sees the screw, so it shows backlash between motor and screw, but not any in the nut</td></tr>
+      <tr><td>Spindle: no signal</td><td>No encoder supply, or a wrong terminal</td><td>Measure 12 V at J3. Check J5 T12 goes to G540 terminal 12</td></tr>
+      <tr><td>UCCNC lost its spindle input</td><td>A wrong J5 terminal, or the taps loading the inputs</td><td>Check J5 against the G540 tab, then disconnect R5, R7 and R9 one at a time</td></tr>
+      <tr><td>RPM jumps around</td><td>Noise on the encoder cable, or a slipping coupling</td><td>Use the shield, and route it away from the motor. Check the coupling</td></tr>
+      <tr><td>RPM reads double or half</td><td>Wrong Spindle encoder PPR, or the encoder is not 1:1</td><td>Correct the PPR for your encoder and drive ratio</td></tr>
+      <tr><td>Spindle will not start</td><td>PC817 wiring, or a low target</td><td>Check R13 and the orientation of U1 pin 1. Check HIGH, WIPER and LOW at J9, and check the knob or Target</td></tr>
+      <tr><td>Spindle runs flat out</td><td>Wiring fault on the controller side, or speed-signal polarity</td><td><b>Stop using it right away.</b> Unplug the lathe and check HIGH and LOW are not swapped, and that R14 is fitted</td></tr>
+      <tr><td>Speed hunts up and down</td><td>Loop gains too high</td><td>Halve KP, then lower KI if it still hunts</td></tr>
+      <tr><td>CNC Offline</td><td>No charge pump tap, or no signal</td><td>Normal if you skipped the optional tap. Otherwise start and reset UCCNC, and check the pin 16 tap</td></tr>
+      <tr><td>RGB or blue LED does nothing</td><td>Your board uses different pins</td><td>Use the LED pin settings and Test LEDs in Settings. Some clones need their RGB solder pads bridged</td></tr>
+      <tr><td>ESP32 restarts by itself</td><td>Weak charger or poor cable</td><td>The display adds load. Use a 1 A or better charger and a short cable, and fit C2 and C3</td></tr>
+    </tbody></table></div>
+    <h3>Updating later</h3>
+    <ul>
+      <li><b>Firmware:</b> open the Firmware window and upload <code>firmware.bin</code> over Wi-Fi.</li>
+      <li><b>This page:</b> use Upload Filesystem Image over USB. It erases saved recordings, so download them first. Settings and tools are kept.</li>
+      <li><b>Versions:</b> both show at the top of the page. The full history is in <code>CHANGELOG.md</code>.</li>
+    </ul>
+    <p class="sidenote">References: Geckodrive G540 manual Rev 8, Omron E6B2-C datasheet, Espressif ESP32-S3-DevKitC-1 user guide, Sharp PC817 datasheet.</p>
+  </div>
+</section></dialog>
+<div class="toast" id="toast"></div>
+<script>
+// Bump WEB_VERSION with every page change and record it in CHANGELOG.md. FW_MIN is the oldest firmware this page works fully with.
+const WEB_VERSION='1.18.0',FW_MIN='1.4.0';
+// Interface board revision. hardware/make_pcb.py writes it here; every board file name carries it.
+const BOARD_REV='F';
+document.querySelectorAll('a.hwf').forEach(a=>{const n='board_rev'+BOARD_REV+'_'+a.dataset.f;a.href='hw/'+n;a.download=n;a.textContent=n});document.querySelectorAll('.hwrev').forEach(e=>e.textContent=BOARD_REV);
+const $=id=>document.getElementById(id), val=id=>$(id).value;
+const verLt=(a,b)=>{const x=String(a).split('.').map(Number),y=String(b).split('.').map(Number);for(let i=0;i<3;i++){if((x[i]||0)!==(y[i]||0))return (x[i]||0)<(y[i]||0)}return false};
+let st={}, loadHist=[], recData=[], allEvents=[], showAll=false, ws, sim=false;
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2500)}
+function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));else simCmd(o)}
+// Shows the DRO resolution that the encoder settings give, so a wrong entry is obvious before saving.
+function axResUpdate(){const r=(p,l,d)=>p>0&&l>0?(l*(d?2:1)/(4*p)).toFixed(6)+' in':'—',dia=val('s_xDia')==='true';
+ $('axRes').textContent='DRO resolution: X '+r(+val('s_xPpr'),+val('s_xLead'),dia)+(dia?' of diameter':'')+' per count · Z '+r(+val('s_zPpr'),+val('s_zLead'),false)+' per count. Encoders are counted on every edge, 4 counts per pulse.'}
+['s_xPpr','s_xLead','s_xDia','s_zPpr','s_zLead'].forEach(i=>$(i).addEventListener('input',axResUpdate));
+function ledTest(){send({cmd:'ledTest'});$('setMsg').textContent=sim?'Demo mode: there are no LEDs to test.':'LED test running for 6 seconds.';$('setMsg').classList.remove('hidden')}
+function setTarget(){const mx=st.maxRpm||Infinity;let r=+val('target');if(r>mx){r=mx;$('target').value=r;toast('Limited to Max RPM ('+mx+')')}send({cmd:'target',rpm:r})}
+function dlg(id){if(id==='dlgSet'){$('setMsg').classList.add('hidden');loadSettings()}if(id==='dlgHelp')hpInit();$(id).showModal()}
+['dlgWifi','dlgFw','dlgHelp'].forEach(i=>$(i).addEventListener('click',e=>{if(e.target===$(i))$(i).close()}));
+function useRpm(){$('target').value=$('ssOut').dataset.rpm||0;setTarget()}
+function fmtT(ms){const s=ms/1000;return String(Math.floor(s/60)).padStart(2,'0')+':'+(s%60).toFixed(1).padStart(4,'0')}
+// ---- rendering ----
+function drawGauge(v,max){const c=$('gauge'),x=c.getContext('2d'),W=c.width,H=c.height,cx=W/2,cy=H*0.62,r=120;x.clearRect(0,0,W,H);
+ const a0=Math.PI*0.75,a1=Math.PI*2.25,g=x.createLinearGradient(cx-r,0,cx+r,0);g.addColorStop(0,'#22c55e');g.addColorStop(.5,'#facc15');g.addColorStop(1,'#ef4444');
+ x.lineWidth=16;x.strokeStyle='#1e2a44';x.beginPath();x.arc(cx,cy,r,a0,a1);x.stroke();x.strokeStyle=g;x.lineCap='round';x.beginPath();x.arc(cx,cy,r,a0,a0+(a1-a0)*Math.min(1,v/max));x.stroke();
+ x.fillStyle='#8fa1c2';x.font='12px sans-serif';x.textAlign='center';for(let i=0;i<=8;i++){const a=a0+(a1-a0)*i/8,t=Math.round(max*i/8);x.fillText(t.toLocaleString(),cx+Math.cos(a)*(r-30),cy+Math.sin(a)*(r-30)+4)}
+ const a=a0+(a1-a0)*Math.min(1,v/max);x.strokeStyle='#e6edf7';x.lineWidth=4;x.beginPath();x.moveTo(cx,cy);x.lineTo(cx+Math.cos(a)*(r-40),cy+Math.sin(a)*(r-40));x.stroke();x.fillStyle='#e6edf7';x.beginPath();x.arc(cx,cy,8,0,7);x.fill();
+ x.fillStyle='#fff';x.font='bold 34px sans-serif';x.fillText(Math.round(v).toLocaleString(),cx,cy+84);x.font='14px sans-serif';x.fillStyle='#8fa1c2';x.fillText('RPM',cx,cy+102)}
+function drawLoad(){const c=$('loadChart'),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);x.strokeStyle='#223052';x.lineWidth=1;
+ [0,25,50,75,100].forEach(p=>{const y=H-4-(H-14)*p/100;x.beginPath();x.moveTo(34,y);x.lineTo(W,y);x.stroke();x.fillStyle='#8fa1c2';x.font='10px sans-serif';x.textAlign='right';x.fillText(p+'%',30,y+3)});
+ if(loadHist.length<2)return;x.beginPath();loadHist.forEach((v,i)=>{const px=34+(W-34)*i/(loadHist.length-1),py=H-4-(H-14)*v/100;i?x.lineTo(px,py):x.moveTo(px,py)});
+ x.strokeStyle='#22c55e';x.lineWidth=2;x.stroke();x.lineTo(W,H-4);x.lineTo(34,H-4);x.fillStyle='rgba(34,197,94,.25)';x.fill()}
+function drawRec(cur){const c=$('recChart'),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);const L=44,R=10,T=8,B=20;
+ if(!recData.length){x.fillStyle='#8fa1c2';x.font='13px sans-serif';x.textAlign='center';x.fillText('No recording loaded',W/2,H/2);return}
+ const t1=recData[recData.length-1][0]||1;let lo=Infinity,hi=-Infinity;recData.forEach(s=>{[s[1],s[2],s[3]/100].forEach(v=>{lo=Math.min(lo,v);hi=Math.max(hi,v)})});if(hi-lo<0.5){hi+=.25;lo-=.25}
+ const X=t=>L+(W-L-R)*t/t1,Y=v=>T+(H-T-B)*(1-(v-lo)/(hi-lo));x.strokeStyle='#223052';x.fillStyle='#8fa1c2';x.font='10px sans-serif';x.textAlign='right';
+ for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4,y=Y(v);x.beginPath();x.moveTo(L,y);x.lineTo(W-R,y);x.stroke();x.fillText(v.toFixed(2),L-4,y+3)}
+ x.textAlign='center';for(let i=0;i<=6;i++){const t=t1*i/6;x.fillText(fmtT(t).slice(0,5),X(t),H-6)}
+ [[1,'#38bdf8'],[2,'#22c55e'],[3,'#f59e0b']].forEach(([k,col])=>{x.beginPath();recData.forEach((s,i)=>{const v=k===3?s[3]/100:s[k];i?x.lineTo(X(s[0]),Y(v)):x.moveTo(X(s[0]),Y(v))});x.strokeStyle=col;x.lineWidth=2;x.stroke()});
+ if(cur>0){x.strokeStyle='#fff';x.lineWidth=1;x.beginPath();x.moveTo(X(cur),T);x.lineTo(X(cur),H-B);x.stroke()}}
+// ---- lathe view: sweeps the recorded X/Z path through a virtual stock to work out the part ----
+const lv={N:360,bins:new Float32Array(360),i:0,key:'',data:null,t:0,view:null,timer:0,wasRec:false,cut:false,alarm:false};
+const LV={cy:140,x0:84,spinOn:10};
+function lvStock(){let dm=0,zm=0;recData.forEach(s=>{if(s[3]>LV.spinOn){dm=Math.max(dm,Math.abs(s[1]));if(s[2]<zm)zm=s[2]}});
+ const d=+val('lvD'),l=+val('lvL');return {d:d>0?d:(dm||1),l:l>0?l:(zm<0?Math.ceil((-zm+.25)*4)/4:2)}}
+function lvSeg(a,b,S){if(a[3]<=LV.spinOn&&b[3]<=LV.spinOn)return false;const ra=Math.abs(a[1])/2,rb=Math.abs(b[1])/2,za=a[2],zb=b[2],lo=Math.min(za,zb),hi=Math.max(za,zb);
+ if(hi<-S.l||lo>0)return false;const dz=S.l/lv.N,i0=Math.max(0,Math.floor((lo+S.l)/dz)),i1=Math.min(lv.N-1,Math.floor((hi+S.l)/dz));let cut=false;
+ for(let i=i0;i<=i1;i++){const zc=-S.l+(i+.5)*dz;let r=i0===i1?Math.min(ra,rb):ra+(rb-ra)*Math.min(1,Math.max(0,(zc-za)/(zb-za)));
+  if(r<lv.bins[i]){lv.bins[i]=r;cut=true;if(r<.001)for(let j=i+1;j<lv.N;j++)lv.bins[j]=0}}return cut}
+// Draws the loaded tool with its cutting point at (0,0). Scale follows the stock, within limits that keep small and large work readable.
+const LV_GOLD='#e0a526',LV_EDGE='#7c5c17',LV_STEEL='#475569',LV_HEAD='#64748b',LV_LINE='stroke="#1e293b" vector-effect="non-scaling-stroke"';
+function lvToolInfo(){const t=tlCur(),name=st.tool||'';if(!name)return {kind:'none'};const m=/^(\S+) \+ (.+)$/.exec(name),code=t&&t.insert||(m?m[2]:/\d+\s*ER\s/i.test(name)?name:null),kind=t&&t.kind||(code?'Threading':'Other');
+ if(code&&/Threading/.test(kind)){const s=(/^(\d+)/.exec(code)||[])[1],h=TW_HOLDERS.find(x=>x.n===(t&&t.holder||(m&&m[1])))||TW_HOLDERS.find(x=>x.s===s);if(h&&TW_IC_MM[s])return {kind:'Threading',h,code}}return {kind}}
+function lvThreadFrag(h,code,k){const mm=TW_IC_MM[h.s],rt=.8*mm,cx=rt,cy=h.f-.866*rt,neck=cx+1.7*rt,s=(mm/2)/88,tipX=cx-139.8*s,tipY=cy-.7*s,form=tiForm(code),hd=[[cx-.45*rt,0],[neck+.5*rt,0],[neck,h.b],[cx+.85*rt,h.b],[cx+.55*rt,cy+.8*rt],[cx-.2*rt,cy+.3*rt],[cx-.65*rt,cy-.1*rt],[cx-.45*rt,cy-.75*rt]].map(p=>p.join(',')).join(' ');
+ // The holder's top view has the tip at the left and the chuck side at the bottom. This maps it to tip down, chuck side left, as on the screen.
+ return '<g transform="matrix(0,-1,-1,0,0,0) scale('+k.toFixed(3)+') translate('+(-tipX).toFixed(3)+' '+(-tipY).toFixed(3)+')"><rect x="'+neck+'" y="0" width="'+h.l+'" height="'+h.b+'" fill="'+LV_STEEL+'" '+LV_LINE+'/><polygon points="'+hd+'" fill="'+LV_HEAD+'" '+LV_LINE+'/><g transform="translate('+cx+' '+cy+') rotate(-67) scale('+s.toFixed(5)+')">'+tiGroup(form.fk,form.partial)+'</g></g>'}
+function lvGenericFrag(kind,k){const G='fill="'+LV_GOLD+'" stroke="'+LV_EDGE+'" vector-effect="non-scaling-stroke"',S='fill="'+LV_STEEL+'" '+LV_LINE,H='fill="'+LV_HEAD+'" '+LV_LINE,wrap=b=>'<g transform="scale('+k.toFixed(3)+')">'+b+'</g>',shank='<rect x="-3" y="-120" width="14" height="104" '+S+'/><polygon points="-3,-16 -5,-8 8,-5 11,-16" '+H+'/>',hole=(x,y)=>'<circle cx="'+x+'" cy="'+y+'" r="1.6" fill="#334155" stroke="#cbd5e1" vector-effect="non-scaling-stroke"/>';
+ if(kind==='Turning')return wrap(shank+'<polygon points="0,0 -3.5,-7 1,-14 5,-6" '+G+'/>'+hole(.8,-6.8));
+ if(kind==='Facing')return wrap(shank+'<polygon points="0,0 -1,-12 9,-7" '+G+'/>'+hole(2.6,-6.2));
+ if(kind==='Grooving / parting')return wrap('<rect x="-6" y="-120" width="12" height="100" '+S+'/><rect x="-1.5" y="-24" width="3" height="24" '+G+'/>');
+ if(kind==='Form tool')return wrap('<rect x="-6" y="-120" width="12" height="104" '+S+'/><path d="M-3 -16V-3Q0 1 3 -3V-16Z" '+G+'/>');
+ if(kind==='Boring')return wrap('<rect x="2" y="1" width="140" height="9" rx="2" '+S+'/><polygon points="0,0 -1,4 4,5 5,1" '+G+'/>');
+ if(kind==='Drill')return wrap('<rect x="5" y="-4" width="130" height="8" '+S+'/><polygon points="0,0 5,-4 5,4" '+G+'/><path d="M10 -4L20 4M24 -4L34 4M38 -4L48 4" stroke="#1e293b" vector-effect="non-scaling-stroke" fill="none"/>');
+ if(kind==='none')return '<rect x="-10" y="-74" width="20" height="56" fill="#334155" stroke="#64748b"/><path d="M0 0L-9 -18H9Z" fill="#94a3b8"/>';
+ return wrap(shank+'<polygon points="0,0 -3,-8 5,-8" '+G+'/>')}
+function lvToolDraw(sc){const k=Math.min(9,Math.max(3.5,sc/25.4)),i=lvToolInfo(),key=i.kind+'|'+(i.h?i.h.n:'')+'|'+(i.code||'')+'|'+k.toFixed(2);if(lv.toolKey===key)return;lv.toolKey=key;$('lvToolBody').innerHTML=i.kind==='Threading'?lvThreadFrag(i.h,i.code,k):lvGenericFrag(i.kind,k)}
+function lvLast(){return recData.length?recData[recData.length-1][0]:0}
+function lvDraw(){const S=lvStock(),key=S.d+'|'+S.l,cy=LV.cy,sc=Math.min(680/S.l,180/S.d),px=z=>LV.x0+(z+S.l)*sc,t=st.rec?Infinity:st.play?(st.recT||0):lv.view===null?Infinity:lv.view;
+ if(key!==lv.key){lv.key=key;const R=S.d/2*sc,set=(id,o)=>{for(const k in o)$(id).setAttribute(k,o[k])};
+  set('lvGhost',{x:LV.x0,y:cy-R,width:S.l*sc,height:2*R});set('lvJawT',{y:cy-96,height:Math.max(0,96-R)});set('lvJawB',{y:cy+R,height:Math.max(0,96-R)});
+  const st_=S.l<=1?.25:S.l<=4?.5:S.l<=10?1:2;let h='<path d="M'+LV.x0+' 270H'+px(0)+'" stroke="#475569"/>';for(let z=0;z>=-S.l-1e-6;z-=st_){h+='<path d="M'+px(z)+' 266V274" stroke="#475569"/><text x="'+px(z)+'" y="286" text-anchor="middle">'+(z===0?'Z0':z.toFixed(2))+'</text>'}$('lvRule').innerHTML=h}
+ if(key!==lv.bkey||lv.data!==recData||t<lv.t){lv.bkey=key;lv.data=recData;lv.bins.fill(S.d/2);lv.i=0;lv.cut=false}lv.t=t;
+ let moved=false;while(lv.i<recData.length&&recData[lv.i][0]<=t){if(lv.i>0){lv.cut=lvSeg(recData[lv.i-1],recData[lv.i],S);moved=true}lv.i++}if(!moved&&!st.rec&&lv.view===null)lv.cut=false;
+ const top=[];let pr=-1;for(let i=0;i<lv.N;i++){const r=lv.bins[i],x=px(-S.l+i*S.l/lv.N);if(r!==pr){if(pr>=0)top.push([x,pr]);top.push([x,r]);pr=r}}top.push([px(0),pr]);
+ $('lvPart').setAttribute('points',top.map(p=>p[0].toFixed(1)+','+(cy-p[1]*sc).toFixed(1)).concat(top.slice().reverse().map(p=>p[0].toFixed(1)+','+(cy+p[1]*sc).toFixed(1))).join(' '));
+ let path='';const stp=Math.max(1,Math.ceil(lv.i/800));for(let i=0;i<lv.i;i+=stp)path+=px(recData[i][2]).toFixed(1)+','+(cy-Math.abs(recData[i][1])/2*sc).toFixed(1)+' ';$('lvPath').setAttribute('points',path);
+ const a=lv.i>0?recData[lv.i-1]:null,b=recData[lv.i],useRec=!st.rec&&recData.length>0;let tx=st.x||0,tz=st.z||0,tr=st.rpm||0;
+ if(useRec&&a){tx=a[1];tz=a[2];tr=a[3];if(b&&t!==Infinity&&b[0]>a[0]){const f=Math.min(1,(t-a[0])/(b[0]-a[0]));tx+=(b[1]-a[1])*f;tz+=(b[2]-a[2])*f}}
+ $('lvTool').setAttribute('transform','translate('+px(tz).toFixed(1)+' '+(cy-Math.abs(tx)/2*sc).toFixed(1)+')');$('lvSpark').setAttribute('opacity',lv.cut?.75:0);lvToolDraw(sc);$('lvSpin').classList.toggle('on',(useRec?(st.play||lv.timer?tr:0):tr)>LV.spinOn);
+ const mode=st.rec?'Recording':st.play?'Playback':lv.timer?'Preview':recData.length?(lv.view===null?'Finished part':'Review'):'Live';
+ $('lvInfo').innerHTML='<b>'+mode+'</b> · X '+tx.toFixed(4)+' · Z '+tz.toFixed(4)+' in · '+(lv.cut?'Cutting':tr>LV.spinOn?'Spindle on':'Spindle off')+' · Tool '+(st.tool?twEsc(st.tool):'not set')+' · Stock Ø'+(+S.d.toFixed(4))+' × '+(+S.l.toFixed(3))+' in'}
+function lvClock(){const dur=st.rec?(st.recT||0):lvLast()||st.recDur||0,cur=st.rec||st.play?(st.recT||0):lv.view===null?dur:lv.view,b=$('scrub');
+ $('recTime').textContent=fmtT(cur)+' / '+fmtT(dur);b.disabled=!!(st.rec||st.play||!recData.length);b.value=dur?1000*cur/dur:0}
+function lvHalt(){if(lv.timer){clearInterval(lv.timer);lv.timer=0}lv.view=null}
+function lvPreview(){if(!recData.length)return toast('Record or load an operation first');lvHalt();lv.view=0;const sp=+val('playSpeed');
+ lv.timer=setInterval(()=>{lv.view+=100*sp;if(lv.view>=lvLast())lvHalt();lvDraw();lvClock();drawRec(lv.view===null?0:lv.view)},100)}
+// Stop must also clear the playback spindle target: 'recStop' alone leaves the spindle at the last replayed speed.
+function recStopAll(){lvHalt();if(st.play)send({cmd:'stop'});send({cmd:'recStop'});lvDraw();lvClock()}
+$('scrub').addEventListener('input',e=>{if(lv.timer){clearInterval(lv.timer);lv.timer=0}lv.view=lvLast()*e.target.value/1000;lvDraw();lvClock();drawRec(lv.view)});
+['lvD','lvL'].forEach(i=>$(i).addEventListener('input',lvDraw));
+function render(){const s=st;
+ if(s.rec&&!lv.wasRec){recData=[];lvHalt()}if(s.rec&&(!recData.length||s.recT>recData[recData.length-1][0]))recData.push([s.recT||0,s.x||0,s.z||0,s.rpm||0]);
+ if(!s.rec&&lv.wasRec&&!sim)send({cmd:'recData'});lv.wasRec=!!s.rec;
+ $('xv').innerHTML=(s.x||0).toFixed(4)+' <small>in</small>';$('zv').innerHTML=(s.z||0).toFixed(4)+' <small>in</small>';
+ $('cncTag').textContent=s.cnc?'CNC Online':'CNC Offline';$('cncTag').className='tag'+(s.cnc?'':' warn');
+ $('encTag').textContent='Encoder: '+(s.enc?'OK':(s.rpm?'OK':'no signal'));$('encTag').className='tag'+(s.enc||!s.target?'':' warn');
+ drawGauge(s.rpm||0,s.maxRpm>0?s.maxRpm:2000);$('dir').textContent=s.fwd?'CW (Forward)':'CCW (Reverse)';$('load').textContent=(s.load||0)+'%';
+ $('src').textContent=s.play?'Playback':(s.webOverride?'Web':(s.knob?'Knob':'Off'));
+ loadHist.push(s.load||0);if(loadHist.length>60)loadHist.shift();drawLoad();
+ $('hdrSpindle').textContent=(s.fwd?'CW':'CCW')+' @ '+(s.rpm||0).toLocaleString()+' RPM';$('spinH').textContent=(s.spinH||0).toFixed(1)+' h';$('powH').textContent=(s.powH||0).toFixed(1)+' h';
+ $('mode').textContent=s.play?'Playback':(s.rec?'Recording':'Manual');$('ready').textContent=s.enc||!s.target?'● Machine Ready':'● Check spindle';$('ready').className='pill'+(s.enc||!s.target?'':' off');
+ const r=s.rssi||0;$('rssi').textContent=r?r+' dBm ('+Math.min(100,Math.max(0,2*(r+100)))+'%)':'—';$('ip').textContent=s.ip||'—';$('host').textContent=s.host||'—';$('hdrHost').textContent=s.host||'';$('hdrIp').textContent=s.ip||'';$('link').textContent='http://'+(s.ip||'');$('link').href='http://'+(s.ip||'');
+ $('wifiTag').textContent=sim?'Demo':'Connected';$('bWifi').title=$('rssi').textContent;$('fw').textContent='v'+(s.fw||'');
+ $('hdrVer').textContent='Firmware v'+(s.fw||'—')+' · Page v'+WEB_VERSION;$('webVer').textContent='v'+WEB_VERSION;const old=!!s.fw&&verLt(s.fw,FW_MIN);$('fwOld').textContent=old?'This page needs firmware v'+FW_MIN+' or newer. Upload the new firmware.bin below.':'';$('fwOld').classList.toggle('hidden',!old);
+ tlHeader();
+ $('recTag').textContent=s.rec?'Recording: '+s.recName:(s.play?'Playing: '+s.recName:(s.recName?'Loaded: '+s.recName:'Idle'));$('bRec').disabled=!!s.rec;
+ lvClock();if(s.play||s.rec)drawRec(s.recT||0);lvDraw();
+ $('dlCsv').href='/api/recording.csv?name='+encodeURIComponent(s.recName||'');$('dlNc').href='/api/recording.nc?name='+encodeURIComponent(s.recName||'');
+ const al=s.alarms||[];$('alarmTag').textContent=al.length+' active';$('alarms').innerHTML=al.length?al.map(a=>'<div class="alarm">⚠ <span>'+a.msg+'</span><span style="margin-left:auto;color:var(--mut)">'+a.t+'</span></div>').join(''):'<div class="sidenote">No active alarms.</div>';
+ if(lv.alarm!==(al.length>0)){lv.alarm=al.length>0;$('alarmCard').dataset.view=lv.alarm?'overview logs':'logs';applyView()}}
+function renderEvents(){const ic={ok:'✅',warn:'⚠️',rec:'⏺',play:'▶',save:'💾',spindle:'🔄',zero:'⌖',wifi:'📶',fw:'⬆',note:'📝',settings:'⚙',tool:'🔧'};
+ $('events').innerHTML=(showAll?allEvents:allEvents.slice(0,10)).map(e=>'<div class="ev"><span class="t">'+e.t+'</span><span>'+(ic[e.type]||'ⓘ')+' '+twEsc(e.msg)+'</span></div>').join('')}
+function toggleAll(e){e.preventDefault();showAll=!showAll;renderEvents()}
+// ---- surface speed ----
+function calcSS(){const D=+val('ssD'),V=+val('ssV'),du=val('ssDu'),vu=val('ssVu');let Dm=du==='in'?D*25.4:D,Vm=vu==='SFM'?V*0.3048:V;const rpm=Dm>0?Vm*1000/(Math.PI*Dm):0;$('ssOut').textContent=Math.round(rpm).toLocaleString()+' RPM';$('ssOut').dataset.rpm=Math.round(rpm)}
+['ssD','ssV','ssDu','ssVu'].forEach(i=>$(i).addEventListener('input',calcSS));calcSS();
+// ---- threading ----
+// Thread data. rows: [size label, major Ø in the form's unit u, ...pitches in pu (first = standard)]
+// h = external thread depth in mm from pitch P mm; pd = pitch-diameter factor; lead/trail = flank angles (deg) on the
+// chuck side / tailstock side of the groove; cr = crest flat as a fraction of P.
+const TW_ACME_C=P=>(P>=2.539?.010:.005)*25.4;     // ASME B1.5/B1.8 clearance: .010 in at 10 TPI and coarser, .005 in finer
+const TW_TR_AC=P=>P<=1.5?.15:P<=5?.25:P<=12?.5:1; // ISO 2904 crest clearance
+const TW_FORMS={
+ un:{n:'Unified',s:'UNC / UNF · 60°',u:'in',pu:'tpi',lead:30,trail:30,h:P=>.61343*P,pd:.649519,cr:.125,code:'UN',part:'60',anvil:'v',ang:'60°',ser:['UNC','UNF'],nm:(r,p,i)=>r[0]+'-'+p+(i?' UNF':' UNC'),
+  rows:[['#4',.112,40,48],['#5',.125,40,44],['#6',.138,32,40],['#8',.164,32,36],['#10',.19,24,32],['#12',.216,24,28],['1/4',.25,20,28],['5/16',.3125,18,24],['3/8',.375,16,24],['7/16',.4375,14,20],['1/2',.5,13,20],['9/16',.5625,12,18],['5/8',.625,11,18],['3/4',.75,10,16],['7/8',.875,9,14],['1"',1,8,12]]},
+ iso:{n:'ISO Metric',s:'M3 to M24 · 60°',u:'mm',pu:'mm',lead:30,trail:30,h:P=>.61343*P,pd:.649519,cr:.125,code:'ISO',part:'60',anvil:'v',ang:'60°',ser:['Coarse','Fine','Fine','Fine'],nm:(r,p)=>'M'+r[0]+' × '+p,
+  rows:[['3',3,.5,.35],['3.5',3.5,.6,.35],['4',4,.7,.5],['5',5,.8,.5],['6',6,1,.75],['7',7,1,.75],['8',8,1.25,1,.75],['10',10,1.5,1.25,1,.75],['12',12,1.75,1.5,1.25,1],['14',14,2,1.5,1.25,1],['16',16,2,1.5,1],['18',18,2.5,2,1.5,1],['20',20,2.5,2,1.5,1],['22',22,2.5,2,1.5,1],['24',24,3,2,1.5,1]]},
+ acme:{n:'Acme',s:'General purpose · 29°',u:'in',pu:'tpi',lead:14.5,trail:14.5,h:P=>.5*P+TW_ACME_C(P),pd:.5,cr:.3707,code:'ACME',anvil:'t',ang:'29°',ser:['Standard'],nm:(r,p)=>r[0]+'-'+p+' Acme',
+  rows:[['1/4',.25,16],['5/16',.3125,14],['3/8',.375,12],['7/16',.4375,12],['1/2',.5,10],['5/8',.625,8],['3/4',.75,6],['7/8',.875,6],['1',1,5],['1 1/8',1.125,5],['1 1/4',1.25,5],['1 3/8',1.375,4],['1 1/2',1.5,4],['1 3/4',1.75,4],['2',2,4],['2 1/2',2.5,3],['3',3,2]]},
+ stub:{n:'Stub Acme',s:'Shallow form · 29°',u:'in',pu:'tpi',lead:14.5,trail:14.5,h:P=>.3*P+TW_ACME_C(P),pd:.3,cr:.4224,code:'STACME',anvil:'t',ang:'29°',ser:['Standard'],nm:(r,p)=>r[0]+'-'+p+' Stub Acme',
+  rows:[['1/4',.25,16],['5/16',.3125,14],['3/8',.375,12],['7/16',.4375,12],['1/2',.5,10],['5/8',.625,8],['3/4',.75,6],['7/8',.875,6],['1',1,5],['1 1/8',1.125,5],['1 1/4',1.25,5],['1 3/8',1.375,4],['1 1/2',1.5,4],['1 3/4',1.75,4],['2',2,4]]},
+ tr:{n:'Trapezoidal',s:'Tr · DIN 103 · 30°',u:'mm',pu:'mm',lead:15,trail:15,h:P=>.5*P+TW_TR_AC(P),pd:.5,cr:.366,code:'TR',anvil:'t',ang:'30°',ser:['Standard'],nm:(r,p)=>'Tr '+r[0]+' × '+p,
+  rows:[['8',8,1.5],['10',10,2],['12',12,3],['14',14,3],['16',16,4],['18',18,4],['20',20,4],['22',22,5],['24',24,5],['26',26,5],['28',28,5],['30',30,6],['32',32,6],['36',36,6],['40',40,7],['44',44,7],['48',48,8],['50',50,8]]},
+ but:{n:'Buttress',s:'ANSI B1.9 · 7°/45°',u:'in',pu:'tpi',lead:45,trail:7,h:P=>.66271*P,pd:.6,cr:.1631,code:'ABUT',anvil:'b',ang:'7° / 45°',ser:['Common'],nm:(r,p)=>r[0]+'-'+p+' Buttress',
+  rows:[['1/2',.5,20,16,12],['5/8',.625,20,16,12],['3/4',.75,16,12,10],['7/8',.875,16,12,10],['1',1,16,12,10],['1 1/4',1.25,16,12,10,8,6],['1 1/2',1.5,16,12,10,8,6],['1 3/4',1.75,16,12,10,8,6,4],['2',2,16,12,10,8,6,4],['2 1/2',2.5,16,12,10,8,6,4],['3',3,12,10,8,6,4]]},
+ sage:{n:'Sawtooth',s:'S · DIN 513 · 3°/30°',u:'mm',pu:'mm',lead:30,trail:3,h:P=>.86777*P,pd:.75,cr:.264,code:'SAGE',anvil:'b',ang:'3° / 30°',ser:['Standard'],nm:(r,p)=>'S '+r[0]+' × '+p,
+  rows:[['10',10,2],['12',12,3],['14',14,3],['16',16,4],['18',18,4],['20',20,4],['22',22,5],['24',24,5],['26',26,5],['28',28,5],['30',30,6],['32',32,6],['36',36,6]]},
+ sq:{n:'Square',s:'Square form · 0°',u:'in',pu:'tpi',lead:0,trail:0,h:P=>.5*P,pd:.5,cr:.5,code:null,ang:'0° (parallel walls)',ser:['Common'],nm:(r,p)=>r[0]+'-'+p+' Square',
+  rows:[['5/16',.3125,10],['3/8',.375,10],['7/16',.4375,10],['1/2',.5,10,8],['5/8',.625,8],['3/4',.75,8,6],['1',1,5]]},
+ bsw:{n:'Whitworth BSW',s:'Coarse · 55°',u:'in',pu:'tpi',lead:27.5,trail:27.5,h:P=>.64033*P,pd:.64033,cr:.1,code:'W',part:'55',anvil:'v',ang:'55°',ser:['BSW'],nm:(r,p)=>r[0]+'-'+p+' BSW',
+  rows:[['1/8',.125,40],['3/16',.1875,24],['1/4',.25,20],['5/16',.3125,18],['3/8',.375,16],['7/16',.4375,14],['1/2',.5,12],['9/16',.5625,12],['5/8',.625,11],['3/4',.75,10],['7/8',.875,9],['1',1,8]]},
+ bsf:{n:'Whitworth BSF',s:'Fine · 55°',u:'in',pu:'tpi',lead:27.5,trail:27.5,h:P=>.64033*P,pd:.64033,cr:.1,code:'W',part:'55',anvil:'v',ang:'55°',ser:['BSF'],nm:(r,p)=>r[0]+'-'+p+' BSF',
+  rows:[['1/4',.25,26],['5/16',.3125,22],['3/8',.375,20],['7/16',.4375,18],['1/2',.5,16],['9/16',.5625,16],['5/8',.625,14],['3/4',.75,12]]},
+ bsp:{n:'BSP Parallel',s:'G · ISO 228 · 55°',u:'mm',pu:'tpi',lead:27.5,trail:27.5,h:P=>.64033*P,pd:.64033,cr:.1,code:'W',part:'55',anvil:'v',ang:'55°',ser:['Standard'],nm:(r,p)=>'G '+r[0]+'-'+p,
+  rows:[['1/8',9.728,28],['1/4',13.157,19],['3/8',16.662,19],['1/2',20.955,14],['3/4',26.441,14],['1',33.249,11],['1 1/4',41.91,11],['1 1/2',47.803,11],['2',59.614,11]]},
+ rd:{n:'Round',s:'Rd · DIN 405 · 30°',u:'mm',pu:'tpi',lead:15,trail:15,h:P=>.5*P,pd:.5,cr:.25,code:'RD',anvil:'t',ang:'30°',ser:['Standard'],nm:(r,p)=>'Rd '+r[0]+' × 1/'+p+'"',
+  rows:[['8',8,10],['10',10,10],['12',12,10],['14',14,8],['16',16,8],['18',18,8],['20',20,8],['22',22,8],['24',24,8],['28',28,8],['30',30,8],['32',32,8],['36',36,8],['38',38,8],['40',40,6],['44',44,6],['50',50,6]]},
+ npt:{n:'NPT',s:'Tapered pipe · insert only',u:'in',pu:'tpi',lead:30,trail:30,h:P=>.8*P,pd:.8,cr:.033,code:'NPT',anvil:'v',ang:'60°, 1:16 taper',noG:true,ser:['Standard'],nm:(r,p)=>r[0]+'-'+p+' NPT',
+  rows:[['1/8',.405,27],['1/4',.54,18],['3/8',.675,18],['1/2',.84,14],['3/4',1.05,14],['1',1.315,11.5],['1 1/4',1.66,11.5],['1 1/2',1.9,11.5],['2',2.375,11.5]]}
+};
+// Stock external inserts, from the Carmex thread-turning catalog: {insert size: [pitches]} in TPI or mm.
+const TW_INS={UN:{11:[72,64,56,48,44,40,36,32,28,27,24,20,18,16,14],16:[72,64,56,48,44,40,36,32,28,27,24,20,18,16,14,13,12,11.5,11,10,9,8],22:[7,6,5],27:[4.5,4],'27U':[3],'33U':[2]},
+ ISO:{11:[.35,.4,.45,.5,.6,.7,.75,.8,1,1.25,1.5,1.75,2],16:[.35,.4,.45,.5,.6,.7,.75,.8,1,1.25,1.5,1.75,2,2.5,3,3.5],22:[3.5,4,4.5,5],27:[5.5,6],'27U':[8],'33U':[12]},
+ W:{11:[72,60,56,48,40,36,32,28,26,24,22,20,19,18,16,14],16:[72,60,56,48,40,36,32,28,26,24,22,20,19,18,16,14,12,11,10,9,8],22:[7,6,5],27:[4.5,4],'27U':[3.5,3.25,3,2.75]},
+ ACME:{11:[16],16:[16,14,12,10,8],22:[6,5],27:[4],'27U':[3],'33U':[2]},STACME:{11:[16],16:[16,14,12,10,8,6],22:[5,4],27:[3],'33U':[2]},
+ TR:{16:[1.5,2,3],22:[4,5],27:[6,7],'27U':[8,9,10],'33U':[12]},ABUT:{11:[20,16],16:[20,16,12,10],22:[8,6],'22U':[4],'27U':[3]},SAGE:{16:[2],22:[3,4],'22U':[5,6]},
+ RD:{16:[10,8,6],22:[4]},NPT:{11:[27,18,14],16:[27,18,14,11.5,8]}};
+const TW_IC={11:'1/4"',16:'3/8"',22:'1/2"','22U':'1/2" U-type',27:'5/8"','27U':'5/8" U-type','33U':'3/4" U-type'};
+// Partial-profile inserts by holder size: [letter, min mm, max mm]. They suit a range of pitches and leave the crest uncut.
+// 11 ER AG is not in the Carmex catalog but is commonly sold with SER1010H11 holders; only its A range is assumed.
+const TW_PART={11:[['A',.5,1.5],['AG',.5,1.5]],16:[['A',.5,1.5],['G',1.75,3],['AG',.5,3]],22:[['N',3.5,5]]};
+// External right-hand holders from the Carmex catalog (mm). Size 11 holders have no anvil, so they stay at a fixed 1.5° helix.
+const TW_HOLDERS=[{n:'SER1010H11',b:10,l:100,f:11,s:'11',screw:'S11',key:'K11',anvil:''},{n:'SER1212K11',b:12,l:125,f:12,s:'11',screw:'S11',key:'K11',anvil:''},{n:'SER1212F16',b:12,l:80,f:16,s:'16',screw:'S16',key:'K16',anvil:'AE16'},{n:'SER1616H16',b:16,l:100,f:16,s:'16',screw:'S16',key:'K16',anvil:'AE16'},{n:'SER2020K16',b:20,l:125,f:20,s:'16',screw:'S16',key:'K16',anvil:'AE16'},{n:'SER2525M16',b:25,l:150,f:25,s:'16',screw:'S16',key:'K16',anvil:'AE16'},{n:'SER2525M22',b:25,l:150,f:25,s:'22',screw:'S22',key:'K22',anvil:'AE22'}];
+const TW_IC_MM={11:6.35,16:9.525,22:12.7},TW_THICK={11:3,16:3.7,22:4.8};
+const tp={holder:'SER1010H11',form:'UN',ins:null};   // Tools page picker
+const tlHolder=()=>{const t=typeof tlCur==='function'?tlCur():null;return TW_HOLDERS.find(h=>t&&h.n===t.holder)||TW_HOLDERS.find(h=>h.n===tp.holder)||TW_HOLDERS[0]};
+const twPartFor=(s,part,mm)=>{const m=(TW_PART[s]||[]).find(a=>mm>=a[1]-1e-6&&mm<=a[2]+1e-6);return m?s+' ER '+m[0]+part:null};
+// Draws an insert from the catalog outline: three flats tangent to the IC, a notch either side of each tooth, and a countersunk hole.
+// Canonical units: IC radius = 88, with the top tooth on the axis x = -54. The tooth is enlarged and uses the form's flank angles.
+function tiGroup(fk,partial){const f=TW_FORMS[fk],hr=f.h(2.54)/2.54,sc=29/hr,tl=Math.tan(f.lead*Math.PI/180),tt=Math.tan(f.trail*Math.PI/180),rf=partial?3:Math.max(3,(1-f.cr-hr*(tl+tt))*sc),bl=rf/2+29*tl,br=rf/2+29*tt,ax=-54,round=!partial&&['rd','bsw','bsf','bsp'].includes(fk);
+ const rot=(p,k)=>{const a=k*2*Math.PI/3,c=Math.cos(a),s=Math.sin(a);return (p[0]*c-p[1]*s).toFixed(1)+' '+(p[0]*s+p[1]*c).toFixed(1)};let d='',lit='';
+ for(let k=0;k<3;k++){d+=(k?'L':'M')+rot([-88,65],k)+'L'+rot([-88,-97],k)+'L'+rot([ax-bl-6,-99],k)+'L'+rot([ax-bl,-100],k)+'L'+rot([ax-rf/2,-129],k)+(round?'Q'+rot([ax,-136],k)+' ':'L')+rot([ax+rf/2,-129],k)+'L'+rot([ax+br,-100],k)+'L'+rot([ax+br+6,-101],k);
+  lit+='<path d="M'+rot([ax-bl+3,-103],k)+'L'+rot([ax-rf/2,-125],k)+'L'+rot([ax+rf/2,-125],k)+'L'+rot([ax+br-3,-103],k)+'Z" fill="#fde68a"/>'}
+ return '<path d="'+d+'Z" fill="#e0a526" stroke="#7c5c17" stroke-width="3" stroke-linejoin="round"/>'+lit+'<circle r="88" fill="none" stroke="#7c5c17" stroke-width="1.5" stroke-dasharray="6 5"/><circle r="47" fill="#cbd5e1" stroke="#7c5c17" stroke-width="2"/><circle r="30" fill="#334155" stroke="#475569" stroke-width="2"/>'}
+function tiSvg(fk,partial,px,label){return '<svg viewBox="-150 -150 300 '+(label?335:300)+'" width="'+px+'" role="img" aria-label="Threading insert top view">'+tiGroup(fk,partial)+(label?'<text x="0" y="178" text-anchor="middle" style="font-size:24px">'+label+'</text>':'')+'</svg>'}
+// Parses a picker code into what the drawing needs.
+function tiForm(code){const m=/ER\s+(?:[\d.]+\s+)?(\S+)$/.exec(code)||[],c=m[1]||'',p=/^(A|AG|G|N|Q)(60|55)$/.exec(c);if(p)return {fk:p[2]==='60'?'un':'bsw',partial:true};return {fk:{UN:'un',ISO:'iso',W:'bsw',ACME:'acme',STACME:'stub',TR:'tr',ABUT:'but',SAGE:'sage',RD:'rd',NPT:'npt'}[c]||'un',partial:false}}
+// Holder to scale, top and side views, with the chosen insert seated and its active tooth pointing at the work.
+function tiHolderSvg(h,code){const W=620,k=Math.min(15,150/h.b),x0=50,y0=54,mm=TW_IC_MM[h.s],rt=.8*mm,X=v=>x0+v*k,Y=v=>y0+v*k,cx=rt,cy=h.f-.866*rt,neck=cx+1.7*rt,xEnd=W-54,brk=xEnd-90,hB=h.b*k,thick=TW_THICK[h.s]*k,yS=y0+hB+Math.max(0,h.f-h.b)*k+58,form=code?tiForm(code):null,scale=(mm/2*k)/88,steel='#475569',head='#64748b',bg='#0d1527';
+ const P=a=>a.map(p=>X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)).join(' '),hd=P([[cx-.45*rt,0],[neck+.5*rt,0],[neck,h.b],[cx+.85*rt,h.b],[cx+.55*rt,cy+.8*rt],[cx-.2*rt,cy+.3*rt],[cx-.65*rt,cy-.1*rt],[cx-.45*rt,cy-.75*rt]]);
+ const dim=(x1,y1,x2,y2,t,tx,ty,rot)=>'<path d="M'+x1+' '+y1+'L'+x2+' '+y2+'" stroke="#8fa1c2" marker-start="url(#tiA)" marker-end="url(#tiA)"/><text x="'+tx+'" y="'+ty+'" text-anchor="middle" '+(rot?'transform="rotate(-90 '+tx+' '+ty+')"':'')+'>'+t+'</text>';
+ const gap=(y,hh)=>'<path d="M'+brk+' '+(y-1)+'C'+(brk+10)+' '+(y+hh*.33)+' '+(brk-10)+' '+(y+hh*.66)+' '+brk+' '+(y+hh+1)+'H'+(brk+12)+'C'+(brk+2)+' '+(y+hh*.66)+' '+(brk+22)+' '+(y+hh*.33)+' '+(brk+12)+' '+(y-1)+'Z" fill="'+bg+'"/>';
+ return '<svg viewBox="0 0 '+W+' '+(yS+hB+16).toFixed(0)+'" role="img" aria-label="'+h.n+' holder, top and side view"><defs><marker id="tiA" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L8 4L0 8Z" fill="#8fa1c2"/></marker></defs>'+
+ '<text x="'+x0+'" y="16" class="m">Top view. Head to scale, shank shortened.</text>'+
+ '<rect x="'+X(neck).toFixed(1)+'" y="'+y0+'" width="'+(xEnd-X(neck)).toFixed(1)+'" height="'+hB+'" fill="'+steel+'" stroke="#1e293b"/><polygon points="'+hd+'" fill="'+head+'" stroke="#1e293b"/>'+gap(y0,hB)+
+ (form?'<g transform="translate('+X(cx).toFixed(1)+' '+Y(cy).toFixed(1)+') rotate(-67) scale('+scale.toFixed(4)+')">'+tiGroup(form.fk,form.partial)+'</g>':'<circle cx="'+X(cx).toFixed(1)+'" cy="'+Y(cy).toFixed(1)+'" r="'+(mm/2*k).toFixed(1)+'" fill="'+bg+'" stroke="#8fa1c2" stroke-dasharray="5 4"/><text x="'+X(cx).toFixed(1)+'" y="'+(Y(cy)+4).toFixed(1)+'" text-anchor="middle" class="m">Pick an insert</text>')+
+ dim(x0,36,xEnd,36,'L '+h.l+' mm',(x0+xEnd)/2,30)+dim(xEnd+18,y0,xEnd+18,y0+hB,'B '+h.b+' mm',xEnd+36,y0+hB/2,true)+dim(26,y0,26,Y(h.f).toFixed(1),'F '+h.f+' mm',14,Y(h.f/2).toFixed(1),true)+
+ '<text x="'+x0+'" y="'+(yS-12).toFixed(0)+'" class="m">Side view. Set the cutting edge at height H on the spindle centerline.</text>'+
+ '<polygon points="'+[[x0+.15*rt*k,yS+thick],[X(neck),yS+thick],[X(neck),yS],[xEnd,yS],[xEnd,yS+hB],[x0+.45*rt*k,yS+hB]].map(p=>(+p[0]).toFixed(1)+','+(+p[1]).toFixed(1)).join(' ')+'" fill="'+steel+'" stroke="#1e293b"/>'+gap(yS,hB)+
+ '<rect x="'+x0+'" y="'+yS+'" width="'+(2*rt*k).toFixed(1)+'" height="'+thick.toFixed(1)+'" fill="'+(form?'#e0a526':bg)+'" stroke="'+(form?'#7c5c17':'#8fa1c2')+'" transform="rotate(1.5 '+x0+' '+yS+')"/>'+
+ '<path d="M'+(X(neck)-2)+' '+yS+'V'+(yS+thick)+'" stroke="#1e293b"/>'+
+ dim(xEnd+18,yS,xEnd+18,yS+hB,'H '+h.b+' mm',xEnd+36,yS+hB/2,true)+'</svg>'}
+const TW_DEF_RPM=200,TW_MAX_IPM=60,TW_INFEED_OFF=.5;
+let tw={step:1,form:null,size:null,pi:0};
+const twF=()=>TW_FORMS[tw.form],twMetric=()=>!!tw.form&&twF().u==='mm';
+const twFmt=mm=>twMetric()?mm.toFixed(3)+' mm':(mm/25.4).toFixed(4)+' in';
+const twBoth=mm=>twMetric()?mm.toFixed(3)+' mm ('+(mm/25.4).toFixed(4)+' in)':(mm/25.4).toFixed(4)+' in ('+mm.toFixed(3)+' mm)';
+const twEsc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+function twCur(){if(!tw.form||tw.size===null)return null;const f=twF(),inMm=f.u==='mm'?1:25.4;let major,pitch,pv,name,series;
+ if(tw.size==='custom'){const a=+val('cMajor'),b=+val('cPitch');if(!(a>0&&b>0))return null;major=a*inMm;pv=b;pitch=f.pu==='tpi'?25.4/b:b;name=f.n+' Ø'+a+(f.u==='mm'?' mm':' in')+' × '+b+(f.pu==='tpi'?' TPI':' mm');series='Custom'}
+ else{const r=f.rows[tw.size];major=r[1]*inMm;pv=r[tw.pi+2];pitch=f.pu==='tpi'?25.4/pv:pv;name=f.nm(r,pv,tw.pi);series=f.ser[Math.min(tw.pi,f.ser.length-1)]}
+ const h=f.h(pitch);if(2*h>=major)return null;return {f,major,pitch,pv,name,series,h,root:major-2*h,pd:major-f.pd*pitch}}
+function twDefaults(){const c=twCur();if(!c)return;const m=twMetric();$('tLen').value=m?Math.round(2*c.major):(Math.ceil(2*c.major/25.4*20)/20).toFixed(2);
+ const lim=c.f.code?.4:.1;$('tPass').value=m?lim:(lim/25.4).toFixed(4);$('tRpm').value=Math.min(TW_DEF_RPM,Math.floor(TW_MAX_IPM*.66*25.4/c.pitch/10)*10);
+ $('tStock').value=m?+c.major.toFixed(3):+(c.major/25.4).toFixed(4);$('tDoc').value=m?.5:.02;$('tFeed').value=.005;$('tTurnRpm').value=TW_turnRpm(c.major)}
+// 200 SFM starting point, limited by the machine's Max RPM.
+function TW_turnRpm(mm){return Math.min(st.maxRpm>0?st.maxRpm:2000,Math.max(100,Math.round(200*3.82/(mm/25.4)/10)*10))}
+// Stock against the thread: 'over' needs turning first, 'under' truncates the crests, 'small' cannot form a thread at all.
+function twStock(c){const v=+val('tStock'),mm=twMetric()?v:v*25.4;if(!(mm>0))return {mm:0,state:'none'};return {mm,state:mm<=c.root?'small':mm>c.major+.05?'over':mm<c.major-.15*c.pitch?'under':'ok'}}
+function twTurnLen(c,lenIn){return lenIn+Math.max(2*c.pitch,3)/25.4}
+function twPick(k,v){if(k==='form'&&v!==tw.form){tw.size=null;tw.pi=0}tw[k]=v;const f=twF();
+ if(k==='size'){tw.pi=0;if(v==='custom'){const r=f.rows[Math.floor(f.rows.length/2)];$('cMajor').value=r[1];$('cPitch').value=r[2]}twDefaults()}
+ tw.step=k==='form'?2:k==='size'?(v!=='custom'&&f.rows[v].length===3?4:3):4;twRender()}
+function twGo(n){if(n>=1&&n<=twMaxStep()){tw.step=n;twRender()}}
+const twMaxStep=()=>!tw.form?1:tw.size===null?2:!twCur()?3:4;
+function twTile(on,click,label,sub){return '<button class="tw-tile'+(on?' on':'')+'" onclick="'+click+'">'+label+'<small>'+sub+'</small></button>'}
+// Picks the catalog insert for the selected form and pitch. Square threads have no laydown insert.
+function twInsert(c){const f=c.f,beta=Math.atan(c.pitch/(Math.PI*c.pd))*180/Math.PI;let an;
+ if(f.anvil==='b')an=beta<=3?'Negative anvil AE −1.5°':beta<=4.2?'Standard anvil (+1.5°)':beta<=6.5?'Anvil AE +2.5°':'Special holder';
+ else if(f.anvil==='t')an=beta<.5?'Anvil AE +0.5°':beta<=3.2?'Standard anvil (+1.5°)':beta<=4.5?'Anvil AE +2.5°':beta<=6?'Anvil AE +3.5°':beta<=7.5?'Anvil AE +4.5°':'Special holder';
+ else if(f.anvil==='v')an=beta<=5?'Standard anvil (+1.5°)':beta<=6.5?'Anvil AE +2.5°':beta<=7.5?'Anvil AE +3.5°':beta<=9?'Anvil AE +4.5°':'Special holder';
+ else an='None: tilt the tool to the '+beta.toFixed(1)+'° helix';
+ const h=tlHolder(),s=h.s,steep=f.anvil&&an!=='Standard anvil (+1.5°)';if(f.anvil&&!h.anvil)an='No anvil on this holder (fixed 1.5° helix)';else if(f.anvil&&an.startsWith('Anvil AE'))an=an.replace('Anvil AE',h.anvil+' anvil');else if(f.anvil&&an.startsWith('Negative'))an=an.replace('AE',h.anvil);
+ const out={beta,anvil:an,code:null,size:null,alt:null,need:null,holder:h,steep:steep&&!h.anvil};if(!f.code)return out;
+ const pv=+c.pv.toFixed(3),t=TW_INS[f.code],fmt=k=>k+(k.endsWith('U')&&f.code!=='SAGE'?' ER/L ':' ER ')+pv+' '+f.code;
+ if((t[s]||[]).includes(pv)){out.size=s;out.code=fmt(s)}else{for(const k in t)if(t[k].includes(pv)){out.need={size:k,code:fmt(k),holder:(TW_HOLDERS.find(x=>x.s===k&&x.b>=h.b)||TW_HOLDERS.find(x=>x.s===k)||{}).n||null};break}}
+ if(f.part)out.alt=twPartFor(s,f.part,c.pitch);return out}
+// A loaded tool suits the thread if it is the exact insert, or a partial-profile insert of the right angle that covers the pitch.
+function twToolFits(name,c,ins){if(ins.code&&tlKey(name).includes(tlKey(ins.code)))return true;const m=/(\d+)\s*ER\s*(AG|A|G|N)(60|55)/i.exec(name);if(!m||!c.f.part||m[3]!==c.f.part)return false;const a=(TW_PART[m[1]]||[]).find(x=>x[0]===m[2].toUpperCase());return !!a&&c.pitch>=a[1]-1e-6&&c.pitch<=a[2]+1e-6}
+function twInsertArt(c,ins){const f=c.f,fk=tw.form;if(!f.code)return '<svg viewBox="0 0 124 150" width="124" role="img" aria-label="Square threading tool, side view"><rect x="44" y="6" width="36" height="104" fill="#94a3b8" stroke="#475569"/><rect x="50" y="110" width="24" height="24" fill="#94a3b8" stroke="#475569"/><text x="62" y="148" text-anchor="middle" style="font-size:11px">Width = P / 2</text></svg>';
+ const shown=ins.code||(ins.alt)||(ins.need&&ins.need.code),part=!ins.code&&!!ins.alt;return tiSvg(fk,part,136,f.ang+' tooth')+(shown?'':'')}
+function twPasses(c){const v=+val('tPass'),lim=twMetric()?v:v*25.4,lin=!c.f.code;if(!(lim>0))return null;const n=Math.max(11,lin?Math.ceil(c.h/lim):Math.ceil(Math.pow(c.h/lim,2)));
+ const d=[];for(let i=1;i<=n;i++)d.push(lin?c.h*i/n:c.h*Math.sqrt(i/n));return d}
+// Same program layout as threadProgram() in main.cpp, with the depth and infeed taken from the selected form.
+function twGcode(c){const ds=twPasses(c),m=twMetric(),lenIn=(+val('tLen'))/(m?25.4:1),rpm=Math.round(+val('tRpm')),K=c.pitch/25.4,inf=Math.max(0,c.f.trail-TW_INFEED_OFF),tan=Math.tan(inf*Math.PI/180),startZ=Math.max(.2,2.5*K),stk=twStock(c),clearX=(Math.max(stk.mm,c.major)+2)/25.4,ins=twInsert(c);
+ let g='('+c.name+' external thread, '+c.major.toFixed(2)+' x '+c.pitch.toFixed(3)+' mm, '+lenIn.toFixed(3)+' in long)\n('+(ins.code?'Insert '+ins.code+' in '+ins.holder.n:c.f.code?(ins.alt?'Partial insert '+ins.alt+' in '+ins.holder.n:'No insert for '+ins.holder.n+(ins.need?' - needs '+ins.need.code:'')):'Square tool, width '+(c.pitch/2/25.4).toFixed(4)+' in')+', infeed '+inf.toFixed(1)+' deg)\n(INCH UCCNC profile - X in diameter - Z0 = end face - blank '+((c.major-.05)/25.4).toFixed(4)+' in, stock '+(stk.mm/25.4).toFixed(4)+' in)\n'+(st.tool?'(Loaded when generated: '+twGcodeSafe(st.tool)+')\n':'')+(stk.state==='over'?'(STOCK IS OVER THE THREAD MAJOR - TURN TO BLANK DIAMETER '+((c.major-.05)/25.4).toFixed(4)+' IN FIRST)\nM0\n':'')+'G90 G18 G40\nM3 S'+rpm+'\nG4 P2\nG0 X'+clearX.toFixed(4)+' Z'+startZ.toFixed(3)+'\n';
+ const pass=(l,d)=>{g+='('+l+' depth '+(d/25.4).toFixed(4)+')\nG0 Z'+(startZ-d*tan/25.4).toFixed(4)+'\nG0 X'+((c.major-2*d)/25.4).toFixed(4)+'\nG33 Z-'+lenIn.toFixed(3)+' K'+K.toFixed(6)+' Q0\nG0 X'+clearX.toFixed(4)+'\n'};
+ const fit=Math.round(ds.length*8/11);ds.forEach((d,i)=>{if(i===fit)g+='(FIT CHECK)\nG0 Z0.4\nM5\nM0\nM3 S'+rpm+'\nG4 P2\nG0 Z'+startZ.toFixed(3)+'\n';pass('PASS '+(i+1),d)});
+ pass('SPRING 1',ds[ds.length-1]);pass('SPRING 2',ds[ds.length-1]);return g+'G0 Z0.4\nM5\nM30\n'}
+const twGcodeSafe=s=>String(s).replace(/[()]/g,' ');   // parentheses would end a G-code comment early
+// Separate program, because the threading insert cannot turn the OD and a tool change here would lose the zero.
+function twTurnGcode(c){const stk=twStock(c),m=twMetric(),lenIn=(+val('tLen'))/(m?25.4:1),L=twTurnLen(c,lenIn),blank=(c.major-.05)/25.4,start=stk.mm/25.4,clear=start+2/25.4,doc=(+val('tDoc'))/(m?25.4:1),rpm=Math.round(+val('tTurnRpm')),F=rpm*(+val('tFeed'));
+ let g='(OD turning for '+c.name+': stock '+start.toFixed(4)+' to blank '+blank.toFixed(4)+' in, '+L.toFixed(3)+' in long)\n(Use a turning tool - X0 centerline - Z0 end face)\nG90 G18 G40 G94\nM3 S'+rpm+'\nG4 P2\nG0 X'+clear.toFixed(4)+' Z0.100\n';
+ const n=Math.max(1,Math.ceil((start-blank)/(2*doc)-1e-9));for(let i=1;i<=n;i++){const x=i===n?blank:start-2*doc*i;g+='(PASS '+i+')\nG0 X'+x.toFixed(4)+'\nG1 Z-'+L.toFixed(3)+' F'+F.toFixed(2)+'\nG0 X'+clear.toFixed(4)+'\nG0 Z0.100\n'}return g+'G0 Z0.400\nM5\nM30\n'}
+function twDownload(turn){const c=twCur();if(!c)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([turn?twTurnGcode(c):twGcode(c)],{type:'text/plain'}));a.download=(turn?'turn_':'thread_')+c.name.replace(/[^A-Za-z0-9.]+/g,'_')+'.nc';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+// ---- tools: the list and the loaded tool live on the ESP32 ----
+let tools=[],toolsOk=true;
+const tlKey=s=>String(s).replace(/\s/g,'').toUpperCase();
+function tlCur(){return tools.find(t=>t.id===st.toolId)||null}
+function tlHeader(){const t=st.tool||'';$('hdrTool').textContent=t.replace(/^\S+ \+ /,'')||'None';$('hdrTool').title=t;$('tlLoaded').textContent=t||'None';$('tlUnload').disabled=!t;
+ if(tlHeader.last!==(st.toolId||'')+t){tlHeader.last=(st.toolId||'')+t;tlRender();twRender()}}
+function tlMsg(m){$('tlMsg').textContent=m||'';$('tlMsg').classList.toggle('hidden',!m)}
+function tlRender(){const on=st.toolId;tlPickRender();$('tlList').innerHTML=tools.length?tools.map(t=>'<div class="tl-row'+(t.id===on?' on':'')+'"><span class="tl-name">'+(t.insert?tiSvg(tiForm(t.insert).fk,tiForm(t.insert).partial,34):'')+'<b>'+twEsc(t.name)+'</b></span><small>'+twEsc(t.kind||'')+'</small><small>'+twEsc(t.note||'')+'</small><span class="btns"><button '+(t.id===on?'disabled ':'class="primary" ')+'onclick="tlLoad(\''+t.id+'\')">'+(t.id===on?'Loaded':'Load')+'</button><button onclick="tlDel(\''+t.id+'\')" aria-label="Delete '+twEsc(t.name)+'">Delete</button></span></div>').join(''):'<div class="sidenote">No tools yet. Add your first one below, or mark an insert as loaded from the Thread Wizard.</div>'}
+async function tlFetch(){if(sim)return;try{const r=await fetch('/api/tools');if(!r.ok)throw 0;tools=(await r.json()).tools||[];toolsOk=true;tlMsg('');const last=[...tools].reverse().find(t=>t.holder);if(last&&!tp.ins)tp.holder=last.holder}catch(e){toolsOk=false;tlMsg('This firmware cannot store tools yet. Upload firmware v'+FW_MIN+' or newer from the Firmware window.')}tlRender();twRender()}
+// ---- Tools page: choose a holder, then an insert that fits it ----
+const TL_FORMS=[['UN','Unified (UNC/UNF) · full profile'],['ISO','ISO Metric · full profile'],['P60','60° partial profile · range of pitches'],['W','Whitworth / BSP · full profile'],['P55','55° partial profile · range of pitches'],['ACME','Acme'],['STACME','Stub Acme'],['TR','Trapezoidal'],['ABUT','American Buttress'],['SAGE','Sawtooth DIN 513'],['RD','Round DIN 405'],['NPT','NPT']];
+function tlPickList(s,form){const metric=form==='ISO'||form==='TR'||form==='SAGE';if(form==='P60'||form==='P55'){const a=form.slice(1);return (TW_PART[s]||[]).map(p=>({code:s+' ER '+p[0]+a,label:p[0]+a,sub:p[1]+'–'+p[2]+' mm'}))}return (TW_INS[form][s]||[]).map(v=>({code:s+' ER '+v+' '+form,label:v+(metric?' mm':' TPI'),sub:metric?(25.4/v).toFixed(1)+' TPI':(25.4/v).toFixed(2)+' mm'}))}
+function tlPickRender(){const kind=val('tlKind'),thr=kind==='Threading';$('tlPick').classList.toggle('hidden',!thr);$('tlOther').classList.toggle('hidden',thr);if(!thr)return;
+ const h=TW_HOLDERS.find(x=>x.n===tp.holder)||TW_HOLDERS[0],forms=TL_FORMS.filter(f=>tlPickList(h.s,f[0]).length);if(!forms.some(f=>f[0]===tp.form))tp.form=forms[0][0];
+ $('tlHolderSel').innerHTML=TW_HOLDERS.map(x=>'<option'+(x.n===h.n?' selected':'')+'>'+x.n+'</option>').join('');
+ $('tlFormSel').innerHTML=forms.map(f=>'<option value="'+f[0]+'"'+(f[0]===tp.form?' selected':'')+'>'+f[1]+'</option>').join('');
+ const list=tlPickList(h.s,tp.form);if(!list.some(i=>i.code===tp.ins))tp.ins=null;
+ $('tlInsTiles').innerHTML=list.map(i=>'<button class="tw-tile'+(i.code===tp.ins?' on':'')+'" onclick="tlPickIns(\''+i.code+'\')">'+i.label+'<small>'+i.sub+'</small></button>').join('');
+ $('tlHolderInfo').innerHTML='<b>'+h.n+'</b>: '+h.b+' × '+h.b+' mm shank, '+h.l+' mm long · takes size '+h.s+' inserts ('+TW_IC[h.s]+' IC) · screw '+h.screw+', Torx '+h.key+' · '+(h.anvil?'anvil '+h.anvil:'no anvil');
+ $('tlHolderFig').innerHTML=tiHolderSvg(h,tp.ins);
+ const fr=tp.ins?tiForm(tp.ins):null;$('tlInsCard').innerHTML=tp.ins?'<div class="tw-ins-art">'+tiSvg(fr.fk,fr.partial,124)+'</div><div class="tw-ins-txt"><div class="k">Selected insert</div><div class="tw-ins-code">'+tp.ins+'</div><div class="d">'+TW_IC[h.s]+' IC · external right-hand · '+(fr.partial?'partial profile, so turn the OD to size first':'full profile')+' · three cutting edges</div>'+(/AG(60|55)$/.test(tp.ins)&&h.s==='11'?'<div class="d">Often supplied with this holder, but not in the Carmex catalog. Check the pitch range on your packet.</div>':'')+'<div class="d">Add a grade when ordering: MXC or P25C for steel, BMA for stainless, K20 for aluminum.</div></div>':'<div class="sidenote">Pick an insert above to see it here and seated in the holder.</div>';
+ $('tlSave').disabled=$('tlSaveLoad').disabled=!tp.ins}
+function tlPickIns(c){tp.ins=c;tlPickRender()}
+async function tlSavePick(andLoad){const h=tp.holder,ins=tp.ins;if(!ins)return;const name=h+' + '+ins;let t=tools.find(x=>x.name===name);if(!t){t={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),kind:'Threading',holder:h,insert:ins,name,note:val('tlPickNote').trim()};tools.push(t);if(!await tlSave()){tools.pop();return}}$('tlPickNote').value='';if(andLoad)tlLoad(t.id);tlMsg('');tlRender()}
+async function tlSave(){if(sim){tlRender();return true}const body=JSON.stringify({tools});if(body.length>3700){tlMsg('The tool list is full. Delete a tool first.');return false}
+ try{const r=await fetch('/api/tools',{method:'POST',body});if(!r.ok)throw 0;tlMsg('');tlRender();return true}catch(e){tlMsg('Could not save the tool list to the ESP32.');return false}}
+function tlLoad(id){const t=tools.find(x=>x.id===id);send({cmd:'toolLoad',id:t?t.id:'',name:t?t.name:''})}
+async function tlAddTool(kind,name,note){const t={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),kind,name,note};tools.push(t);if(await tlSave())return t;tools.pop();return null}
+async function tlAdd(){const name=val('tlName').trim();if(!name){tlMsg('Enter a tool name or insert code.');return}if(await tlAddTool(val('tlKind'),name,val('tlNote').trim())){$('tlName').value='';$('tlNote').value=''}}
+async function tlDel(id){const t=tools.find(x=>x.id===id);if(!t||!confirm('Delete '+t.name+'?'))return;const keep=tools;tools=tools.filter(x=>x.id!==id);if(!await tlSave()){tools=keep;return}if(st.toolId===id)tlLoad(null)}
+// Marks the insert the wizard asks for as loaded, adding it to the list when it is new.
+async function tlUseInsert(code){const h=tlHolder().n,name=h+' + '+code;let t=tools.find(x=>x.holder===h&&x.insert===code)||tools.find(x=>x.name===code);
+ if(!t){t={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),kind:'Threading',holder:h,insert:code,name,note:''};tools.push(t);if(!await tlSave()){tools.pop();return}}tlLoad(t.id)}
+function twRender(){const m=twMetric(),c=twCur(),max=twMaxStep(),f=tw.form?twF():null;
+ $('twSteps').innerHTML=['Type','Size','Pitch','Review'].map((s,i)=>'<button class="'+(tw.step===i+1?'on':i+1<max||(i+1===max&&i+1<tw.step)?'done':'')+'"'+(i+1>max?' disabled':'')+' onclick="twGo('+(i+1)+')">'+(i+1)+'. '+s+'</button>').join('');
+ const ins=c?twInsert(c):null,pTxt=c?(f.pu==='tpi'?c.pv+' TPI':c.pv+' mm'):'';
+ $('twSel').innerHTML='<span class="k">Current selection</span>'+(c?'<b>'+twEsc(c.name)+'</b><span class="d">'+f.n+' · '+c.series+' · Ø '+twFmt(c.major)+' · pitch '+pTxt+'</span><span class="d">Cut with: <b style="font-size:13px">'+(ins.code||ins.alt||(f.code?'no insert for '+ins.holder.n:'square tool'))+'</b></span>':'<span class="d">'+(tw.form?f.n+(tw.size==='custom'?' · Custom · pitch is too coarse for this diameter, or a value is missing':' · choose a size'):'Nothing selected yet')+'</span>');
+ [1,2,3,4].forEach(i=>$('twP'+i).classList.toggle('hidden',tw.step!==i));
+ $('twForms').innerHTML=Object.keys(TW_FORMS).map(k=>twTile(tw.form===k,"twPick('form','"+k+"')",TW_FORMS[k].n,TW_FORMS[k].s)).join('');
+ $('twTag').textContent=f?'External · '+f.ang:'External';
+ if(f){const pre=tw.form==='iso'?'M':tw.form==='sage'?'S ':tw.form==='tr'?'Tr ':tw.form==='bsp'?'G ':tw.form==='rd'?'Rd ':'';
+  $('twSizes').innerHTML=f.rows.map((r,i)=>twTile(tw.size===i,"twPick('size',"+i+")",pre+r[0],f.u==='mm'?r[1]+' mm':r[1].toFixed(3)+' in')).join('')+twTile(tw.size==='custom',"twPick('size','custom')",'Custom','enter below')}
+ const cust=tw.size==='custom';$('twCustom').classList.toggle('hidden',!cust);$('twPitches').classList.toggle('hidden',cust);$('twP3q').textContent=cust?'Enter the custom thread':'Which pitch?';
+ if(f){$('twCMajL').textContent='Major Ø ('+f.u+')';$('twCPitL').textContent=f.pu==='tpi'?'Threads per inch':'Pitch (mm)'}
+ if(f&&tw.size!==null&&!cust){const r=f.rows[tw.size];$('twPitches').innerHTML=r.slice(2).map((p,i)=>twTile(tw.pi===i,"twPick('pi',"+i+")",f.pu==='tpi'?p+' TPI':p+' mm',f.ser[Math.min(i,f.ser.length-1)]+(i===0&&f.ser.length>1?' (standard)':''))).join('')}
+ if(f){$('tLenL').textContent='Thread length ('+f.u+')';$('tPassL').textContent=(f.code?'Max first pass':'Depth per pass')+' ('+f.u+')'}
+ $('twBack').classList.toggle('hidden',tw.step===1);$('twNext').classList.toggle('hidden',tw.step===4);$('twNext').disabled=tw.step+1>max;$('twDl').classList.toggle('hidden',tw.step!==4);
+ const lenIn=(+val('tLen'))/(m?25.4:1),rpm=+val('tRpm'),ds=c?twPasses(c):null,stk=c?twStock(c):{state:'none'},ok=!!(c&&lenIn>0&&rpm>0&&ds&&!f.noG&&stk.state!=='none'&&stk.state!=='small');$('twDl').disabled=!ok;
+ const over=stk.state==='over'&&!(f&&f.noG),turnOk=over&&lenIn>0&&+val('tDoc')>0&&+val('tFeed')>0&&+val('tTurnRpm')>0;$('twDl').textContent=c&&f.noG?'G-code not available for tapers':over?'2. Thread (.nc)':'Download G-code (.nc)';
+ $('twTurn').classList.toggle('hidden',!over);$('twDlTurn').classList.toggle('hidden',!over||tw.step!==4);$('twDlTurn').disabled=!turnOk;$('twDl').style.marginLeft=over?'':'auto';
+ if(f){$('tStockL').textContent='Stock Ø ('+f.u+')';$('tDocL').textContent='Depth per pass ('+f.u+')'}
+ if(c){const cls={ok:'var(--green)',over:'var(--amber)',under:'var(--amber)',small:'var(--red)',none:'var(--red)'}[stk.state];$('tStockSt').style.color=cls;$('tStockSt').textContent={ok:'Ready to thread',over:'Turn to '+twFmt(c.major-.05)+' first',under:'Undersized: crests will be cut short',small:'Too small for this thread',none:'Enter the stock Ø'}[stk.state];
+  if(over)$('tTurnLen').textContent=lenIn>0?twFmt(twTurnLen(c,lenIn)*25.4):'—';
+  const iIns=twInsert(c),iCode=iIns.code||iIns.alt,lt=st.tool||'',match=!!(lt&&f.code&&twToolFits(lt,c,iIns));$('twToolChk').className='tw-tool '+(match?'ok':lt||iCode?'bad':'');
+  $('twToolChk').innerHTML=!iCode?(lt?'Loaded tool: <b>'+twEsc(lt)+'</b>. Check that it suits this thread.':'No tool is marked as loaded.'):match?'✓ <b>'+twEsc(lt)+'</b> is loaded and suits this thread':(lt?'⚠ <b>'+twEsc(lt)+'</b> is loaded, but this thread needs <b>'+iCode+'</b>':'⚠ No tool is marked as loaded. This thread needs <b>'+iCode+'</b>')+' <button onclick="tlUseInsert(\''+iCode+'\')">Mark '+iCode+' as loaded</button>'}
+ if(c){$('tMajor').textContent=twBoth(c.major);$('tPitch').textContent=twBoth(c.pitch);$('tTpi').textContent=(25.4/c.pitch).toFixed(2);$('tPd').textContent=twBoth(c.pd);$('tRoot').textContent=twBoth(c.root);$('tDepth').textContent=twBoth(c.h);$('tBlank').textContent=twBoth(c.major-.05);
+  $('tInfeed').textContent=f.noG?'—':Math.max(0,f.trail-TW_INFEED_OFF).toFixed(1)+'° '+(f.trail?'along the tailstock-side flank':'(straight in)');$('tFirst').textContent=ds?twBoth(ds[0])+' · '+ds.length+' + 2 spring passes':'—';
+  $('twIns').innerHTML='<div class="tw-ins-art">'+twInsertArt(c,ins)+'</div><div class="tw-ins-txt"><div class="k">'+(f.code?'Indexable insert for your '+ins.holder.n:'Cutting tool to use')+'</div>'+
+   (ins.code?'<div class="tw-ins-code">'+ins.code+'</div><div class="d">'+TW_IC[ins.size]+' inscribed circle · external right-hand · full profile · three cutting edges</div>'+(ins.alt?'<div class="d">Partial-profile option: <b>'+ins.alt+'</b> (does not form the crest, so turn the OD to size first)</div>':''):
+    ins.alt?'<div class="tw-ins-code">'+ins.alt+'</div><div class="d">Partial profile: this holder has no full-form insert for this pitch. It does not form the crest, so turn the OD to size first.</div>'+(ins.need?'<div class="d">Full-form option: <b>'+ins.need.code+'</b>'+(ins.need.holder?' in a '+ins.need.holder:'')+'.</div>':''):
+    f.code?'<div class="tw-ins-code" style="color:var(--red)">No insert fits this holder</div><div class="d">'+(ins.need?'This pitch needs <b>'+ins.need.code+'</b>'+(ins.need.holder?', which fits a <b>'+ins.need.holder+'</b> holder':'')+'.':'The catalog has no insert for this pitch. Use a ground tool.')+'</div>':
+    '<div class="tw-ins-code">Ground HSS or grooving insert</div><div class="d">No laydown insert exists for square threads. Tool width <b>'+twFmt(c.pitch/2)+'</b>, with side clearance beyond the '+ins.beta.toFixed(1)+'° helix.</div>')+
+   (f.code?'<div class="d">Helix '+ins.beta.toFixed(2)+'° · '+ins.anvil+'</div><div class="d">Add a grade: MXC or P25C for steel, BMA for stainless, K20 for aluminum.</div>':'')+'</div>'}
+ ['tRpm','tPass'].forEach(i=>$(i).parentElement.classList.toggle('hidden',!!(f&&f.noG)));
+ const w=[];if(c){if(!(lenIn>0))w.push('Enter a thread length greater than zero.');
+  if(!f.noG&&stk.state==='small')w.push('The stock is at or below the thread root Ø of '+twFmt(c.root)+', so no thread can be formed.');
+  if(!f.noG&&stk.state==='over')w.push('Run the OD turning program first with a turning tool, then re-zero X and Z with the threading tool. The thread program pauses at the start as a reminder.');
+  if(!f.noG&&stk.state==='under')w.push('The stock is under the thread major Ø of '+twFmt(c.major)+', so the first passes cut air and the crests stay short of full height.');
+  const zm=parseFloat(val('s_zMin')),xm=parseFloat(val('s_xMax'));if(!f.noG&&lenIn>0&&zm<0&&-(over?twTurnLen(c,lenIn):lenIn)<zm)w.push('The cut reaches past the Z soft limit of '+zm+' in set in Settings.');if(!f.noG&&stk.mm>0&&(Math.max(stk.mm,c.major)+2)/25.4>xm)w.push('The retract position is past the X soft limit of '+xm+' in set in Settings.');if(!(rpm>0))w.push('Enter a spindle speed.');if(!ds)w.push('Enter a pass depth greater than zero.');
+  if(f.noG)w.push('NPT is tapered 1:16, and this page generates straight threads only. The insert is shown for reference, and the diameters are nominal pipe OD.');
+  if(lenIn*25.4>4*c.major)w.push('This thread is more than 4× its diameter long. Support the work with a tailstock to limit deflection.');
+  if(rpm*c.pitch/25.4>TW_MAX_IPM)w.push('Z feed would be '+Math.round(rpm*c.pitch/25.4)+' in/min. Lower the spindle speed if this is near your Z axis limit.');
+  if(f.code&&!ins.code&&!ins.alt)w.push('No insert for this pitch fits your '+ins.holder.n+'. Check the insert panel above before running this program.');
+  if(ins.steep)w.push('This thread\'s helix is '+ins.beta.toFixed(1)+'°, and your '+ins.holder.n+' has no anvil to adjust the 1.5° lean. Check for flank rubbing, or use a holder that takes an anvil.');
+  if(ins.anvil==='Special holder')w.push('The helix is too steep for standard anvils at this pitch and diameter, so a special holder is required.');
+  if(f.lead!==f.trail)w.push('Standard inserts cut with the '+f.lead+'° flank leading, so the '+f.trail+'° pressure flank faces the tailstock end. Order the opposite execution if the load must run the other way.')}
+ $('twWarn').innerHTML=w.map(s=>'<div>'+s+'</div>').join('');$('twWarn').classList.toggle('hidden',!w.length);
+ twDraw(c)}
+// Side view scaled to fit, so pitch and diameter stay in true proportion; bars below compare the OD to a fixed reference.
+function twDraw(c){if(!c){$('twFig').innerHTML='<svg viewBox="0 0 480 290" role="img" aria-label="No thread selected"><text x="240" y="150" text-anchor="middle" class="m">Your thread will be drawn here</text></svg>';return}
+ const f=c.f,cy=135,R=72,s=R/(c.major/2),P=c.pitch*s,d=c.h*s,fl=d*Math.tan(f.lead*Math.PI/180),ft=d*Math.tan(f.trail*Math.PI/180),cr=f.cr*P,x0=120,x1=395,xs=40;
+ const prof=(sign,ph)=>{const pts=[];for(let x=x0+ph;x<x1+P;x+=P){pts.push([x,cy-sign*R],[x+cr,cy-sign*R],[x+cr+fl,cy-sign*(R-d)],[x+P-ft,cy-sign*(R-d)])}return pts};
+ const top=prof(1,0),bot=prof(-1,P/2),pts=[[xs,cy-R],[x0,cy-R],...top,[x1+P,cy-R],[x1+P,cy+R],...bot.reverse(),[x0,cy+R],[xs,cy+R]].map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+ const rm=cr+fl+(P-cr-fl-ft)/2;let hel='';for(let x=x0;x<x1;x+=P){hel+='<path d="M'+(x+cr/2).toFixed(1)+' '+(cy-R)+'L'+(x+cr/2+P/2).toFixed(1)+' '+(cy+R)+'" stroke="#e6edf7" stroke-opacity=".55"/><path d="M'+(x+rm).toFixed(1)+' '+(cy-R+d).toFixed(1)+'L'+(x+rm+P/2).toFixed(1)+' '+(cy+R-d).toFixed(1)+'" stroke="#0a1020" stroke-opacity=".7"/>'}
+ const m=twMetric(),pLbl=f.pu==='tpi'?c.pv+' TPI · P '+(m?c.pitch.toFixed(3)+' mm':(c.pitch/25.4).toFixed(4)+' in'):'P '+c.pitch.toFixed(3)+' mm';
+ const ref=m?25:25.4,bar=200/ref,odW=Math.min(420,c.major*bar),px=x0+P*Math.max(1,Math.round(120/P)),dx1=412,dx2=444,cham=Math.min(d,R*.5);
+ $('twFig').innerHTML='<svg viewBox="0 0 480 290" role="img" aria-label="Side view of '+twEsc(c.name)+' thread with dimensions">'+
+ '<defs><linearGradient id="twSteel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#64748b"/><stop offset=".35" stop-color="#cbd5e1"/><stop offset="1" stop-color="#334155"/></linearGradient>'+
+ '<clipPath id="twClip"><path d="M'+xs+' 0H'+(x1-cham).toFixed(1)+'V'+(cy-R)+'L'+x1+' '+(cy-R+cham).toFixed(1)+'V'+(cy+R-cham).toFixed(1)+'L'+(x1-cham).toFixed(1)+' '+(cy+R)+'V290H'+xs+'Z"/></clipPath>'+
+ '<marker id="twA" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L8 4L0 8Z" fill="#8fa1c2"/></marker></defs>'+
+ '<text x="10" y="22" class="t">'+twEsc(c.name)+'</text>'+
+ '<g clip-path="url(#twClip)"><polygon points="'+pts+'" fill="url(#twSteel)"/><g stroke-width="1.2" fill="none">'+hel+'</g></g>'+
+ '<path d="M24 '+cy+'H405" stroke="#38bdf8" stroke-width="1" stroke-dasharray="12 3 3 3"/>'+
+ '<g stroke="#8fa1c2" stroke-width="1" fill="none"><path d="M'+px.toFixed(1)+' '+(cy-R-3)+'V'+(cy-R-20)+'M'+(px+P).toFixed(1)+' '+(cy-R-3)+'V'+(cy-R-20)+'M'+(px-14).toFixed(1)+' '+(cy-R-15)+'H'+(px+P+14).toFixed(1)+'"/>'+
+ '<path d="M'+x1+' '+(cy-R+d).toFixed(1)+'H'+(dx1+4)+'M'+x1+' '+(cy+R-d).toFixed(1)+'H'+(dx1+4)+'M'+(x1-cham).toFixed(1)+' '+(cy-R)+'H'+(dx2+4)+'M'+(x1-cham).toFixed(1)+' '+(cy+R)+'H'+(dx2+4)+'"/>'+
+ '<path d="M'+dx1+' '+(cy-R+d).toFixed(1)+'V'+(cy+R-d).toFixed(1)+'M'+dx2+' '+(cy-R)+'V'+(cy+R)+'" marker-start="url(#twA)" marker-end="url(#twA)"/></g>'+
+ '<text x="'+(px+P/2).toFixed(1)+'" y="'+(cy-R-23)+'" text-anchor="middle">'+pLbl+'</text>'+
+ '<text transform="translate('+(dx1-5)+' '+cy+') rotate(-90)" text-anchor="middle" class="m">Root Ø '+twFmt(c.root)+'</text>'+
+ '<text transform="translate('+(dx2-5)+' '+cy+') rotate(-90)" text-anchor="middle">Ø '+twFmt(c.major)+'</text>'+
+ '<text x="40" y="232" class="m">Relative size (same scale)</text>'+
+ '<rect x="40" y="240" width="'+odW.toFixed(1)+'" height="10" rx="2" fill="#38bdf8"/><text x="'+(46+odW).toFixed(1)+'" y="250" class="m">this thread</text>'+
+ '<rect x="40" y="258" width="200" height="10" rx="2" fill="#475569"/><text x="246" y="268" class="m">'+(m?'25 mm':'1 in')+' reference</text>'+
+ '<text x="10" y="285" class="m">Scaled to fit, pitch and diameter in true proportion. Rounded forms drawn with flats.</text></svg>'}
+['cMajor','cPitch'].forEach(i=>$(i).addEventListener('input',()=>{twDefaults();twRender()}));$('tStock').addEventListener('input',()=>{const c=twCur();if(c){const s=twStock(c);if(s.mm>0)$('tTurnRpm').value=TW_turnRpm(s.mm)}});
+['tLen','tPass','tRpm','tStock','tDoc','tFeed','tTurnRpm'].forEach(i=>$(i).addEventListener('input',twRender));twRender();
+// ---- settings / OTA ----
+async function loadSettings(){try{const s=await (await fetch('/api/settings')).json();st.maxRpm=s.maxRpm;for(const k in s){const el=$('s_'+k);if(el)el.value=s[k]}}catch(e){}axResUpdate()}
+async function saveSettings(reboot){const o={reboot};['ssid','pass','host','manifest'].forEach(k=>o[k]=val('s_'+k));['ppr','xPpr','xLead','zPpr','zLead','maxRpm','minRpm','kp','ki','xMin','xMax','zMin','zMax','ledRgb','ledBlue'].forEach(k=>o[k]=+val('s_'+k));['knob','xInv','zInv','xDia','blueLow','dispFlip'].forEach(k=>o[k]=val('s_'+k)==='true');
+ if(!(o.maxRpm>o.minRpm)){$('setMsg').textContent='Max RPM must be greater than Min RPM.';$('setMsg').classList.remove('hidden');return}
+ if(!(o.xPpr>0&&o.zPpr>0&&o.xLead>0&&o.zLead>0)){$('setMsg').textContent='Encoder P/R and travel per encoder rev must all be greater than zero.';$('setMsg').classList.remove('hidden');return}
+ if(o.ledBlue>=0&&o.ledBlue===o.ledRgb){$('setMsg').textContent='The RGB and blue LEDs cannot use the same pin.';$('setMsg').classList.remove('hidden');return}
+ try{await fetch('/api/settings',{method:'POST',body:JSON.stringify(o)});st.maxRpm=o.maxRpm;$('dlgSet').close();toast(reboot?'Saved, rebooting…':'Settings saved')}catch(e){if(sim)st.maxRpm=o.maxRpm;$('dlgSet').close();toast(sim?'Demo mode: applied to this page only':'Could not save settings')}}
+async function checkUpdate(){try{const j=await (await fetch('/api/check-update')).json();$('fwAvail').textContent=j.version?'v'+j.version:'none (set a manifest URL)';}catch(e){$('fwAvail').textContent='—'}}
+$('otaForm').onsubmit=e=>{e.preventDefault();const f=$('otaFile').files[0];if(!f){$('otaMsg').textContent='Pick a firmware.bin first.';return}const fd=new FormData();fd.append('firmware',f);const x=new XMLHttpRequest();x.open('POST','/update');
+ x.upload.onprogress=p=>{$('otaBar').style.width=(100*p.loaded/p.total)+'%';$('otaMsg').textContent='Uploading '+Math.round(100*p.loaded/p.total)+'%'};x.onload=()=>$('otaMsg').textContent=x.responseText+' — reconnecting in a few seconds';x.send(fd)}
+async function loadRecList(){try{const j=await (await fetch('/api/recordings')).json();$('recList').innerHTML=j.files.map(f=>'<option>'+f+'</option>').join('')}catch(e){}}
+// ---- websocket ----
+function connect(){try{ws=new WebSocket('ws://'+location.host+'/ws')}catch(e){startSim();return}
+ ws.onopen=()=>{send({cmd:'events'});send({cmd:'recData'});loadSettings();loadRecList();tlFetch()};
+ ws.onmessage=m=>{const d=JSON.parse(m.data);if(d.toolsChanged){tlFetch();return}if(d.ev){allEvents.unshift(d.ev);allEvents=allEvents.slice(0,50);renderEvents();if(d.ev.type==='save')loadRecList();return}
+  if(d.events){allEvents=d.events;$('notes').value=d.notes||'';renderEvents();return}if(d.samples){recData=d.samples;lvHalt();drawRec(0);lvClock();lvDraw();return}Object.assign(st,d);render()};
+ ws.onclose=()=>{if(!sim)setTimeout(connect,2000)};ws.onerror=()=>{if(location.protocol==='file:'||!location.host)startSim()}}
+// ---- demo simulator (runs when opened as a file, so the page can be previewed) ----
+function startSim(){if(sim)return;sim=true;let t=0,target=1240,rpmv=0,x=0.482,z=-1.245,rec=false,play=false,recT=0,dur=0;allEvents=[{t:'14:26:05',type:'ok',msg:'Machine ready (idle)'},{t:'14:27:46',type:'zero',msg:'Axis zero: X and Z'}];renderEvents();
+ st={fw:FW_MIN,ip:'192.168.1.42',host:'ESP32-Lathe',rssi:-48,spinH:152.6,powH:487.3,cnc:true,enc:true,knob:true,maxRpm:2000,recName:'thread_M12_test'};$('target').value=target;$('s_maxRpm').value=2000;$('s_minRpm').value=60;$('s_xPpr').value=600;$('s_zPpr').value=600;$('s_xLead').value=.1;$('s_zLead').value=.1;$('s_ppr').value=100;axResUpdate();
+ const demo=[[1.1,.1],[.9,.1],[.9,-1.5],[1.1,-1.5],[1.1,.1],[.8,.1],[.8,-1.5],[1.1,-1.5],[1.1,.1],[.7,.1],[.7,-1],[.8,-1.2],[1.1,-1.2],[1.1,-.02],[0,-.02],[1.1,-.02],[1.1,.2]];let di=0;
+ window.simCmd=o=>{if(o.cmd==='target'){target=o.rpm;st.webOverride=true}if(o.cmd==='knob')st.webOverride=false;if(o.cmd==='zeroX')x=0;if(o.cmd==='zeroZ')z=0;if(o.cmd==='recStart'){rec=true;recT=0;di=0;x=1.1;z=.2;st.recName=o.name}if(o.cmd==='recStop'){rec=false;play=false;dur=recT}if(o.cmd==='play'&&recData.length){play=true;recT=0}if(o.cmd==='stop')play=false;if(o.cmd==='notes')toast('Saved (demo)');if(o.cmd==='toolLoad'){st.toolId=o.id;st.tool=o.name}allEvents.unshift({t:new Date().toTimeString().slice(0,8),type:o.cmd==='recStart'?'rec':'ok',msg:'Demo: '+o.cmd});renderEvents()};
+ setInterval(()=>{t+=.25;rpmv+=(target-rpmv)*.15+(Math.random()-.5)*8;
+  if(rec){recT+=250;if(di<demo.length){const w=demo[di],dx=w[0]-x,dz=w[1]-z,dd=Math.hypot(dx,dz),v=.12;if(dd<=v){x=w[0];z=w[1];di++}else{x+=dx/dd*v;z+=dz/dd*v}}}else{z-=rpmv>10?0.0008:0;if(z<-2.3)z=-0.2}
+  if(play){recT+=250;if(recT>dur){play=false}else{const s=recData.find(s=>s[0]>=recT);if(s)target=s[3]}}
+  Object.assign(st,{x,z,rpm:Math.round(rpmv),target,fwd:true,load:Math.round(25+rpmv/80+Math.random()*8),rec,play,recT,recDur:rec?recT:dur,alarms:z<-2.1?[{t:'now',msg:'Tool approaching soft limit (Z)'}]:[]});render()},250)}
+connect();if(location.protocol==='file:')startSim();
+// ---- help window ----
+// One list drives the diagram and the connection table. y is the row on the ESP32 header (see HP_J1 and HP_J3).
+const HP_J1=['3V3','3V3','RST','4','5','6','7','15','16','17','18','8','3','46','9','10','11','12','13','14','5V','G'],HP_J3=['G','TX','RX','1','2','42','41','40','39','38','37','36','35','0','45','48','47','21','20','19','G','G'];
+const HP_WIRES=[
+ {id:'enca',c:'#facc15',n:'Spindle A',from:'Spindle encoder black, J3 A',via:'Q1 inverter; also J5 T2 to G540 terminal 2',to:'GPIO 4'},
+ {id:'encb',c:'#22c55e',n:'Spindle B',from:'Spindle encoder white, J3 B',via:'Q2 inverter; also J5 T3 to G540 terminal 3',to:'GPIO 5'},
+ {id:'encz',c:'#fb923c',n:'Spindle index',from:'Spindle encoder orange, J3 Z',via:'Q3 inverter; also J5 T1 to G540 terminal 1',to:'GPIO 6'},
+ {id:'xa',c:'#38bdf8',n:'X encoder A',from:'X encoder black, J1 A',via:'R1 2.2 kΩ pull-up to 3V3',to:'GPIO 7'},
+ {id:'xb',c:'#818cf8',n:'X encoder B',from:'X encoder white, J1 B',via:'R2 2.2 kΩ pull-up to 3V3',to:'GPIO 15'},
+ {id:'za',c:'#f472b6',n:'Z encoder A',from:'Z encoder black, J2 A',via:'R3 2.2 kΩ pull-up to 3V3',to:'GPIO 16'},
+ {id:'zb',c:'#c084fc',n:'Z encoder B',from:'Z encoder white, J2 B',via:'R4 2.2 kΩ pull-up to 3V3',to:'GPIO 17'},
+ {id:'cp',c:'#2dd4bf',n:'Charge pump (optional)',from:'DB25 pin 16, J6',via:'Q4 inverter',to:'GPIO 18'},
+ {id:'tft_rst',c:'#fca5a5',n:'Display RESET',from:'GPIO 8',via:'Direct',to:'Display RESET'},
+ {id:'tft_dc',c:'#86efac',n:'Display DC',from:'GPIO 9',via:'Direct',to:'Display DC'},
+ {id:'tft_cs',c:'#fde68a',n:'Display CS',from:'GPIO 10',via:'Direct',to:'Display CS'},
+ {id:'tft_mosi',c:'#f1f5f9',n:'Display SDI (MOSI)',from:'GPIO 11',via:'Direct',to:'Display SDI (MOSI)'},
+ {id:'tft_sck',c:'#94a3b8',n:'Display SCK',from:'GPIO 12',via:'Direct',to:'Display SCK'},
+ {id:'tft_vcc',c:'#dc2626',n:'Display power',from:'5V pin',via:'Direct',to:'Display VCC'},
+ {id:'tft_led',c:'#ef4444',n:'Display backlight',from:'3V3 pin',via:'Direct',to:'Display LED'},
+ {id:'knob',c:'#a3e635',n:'Knob wiper',from:'10 kΩ pot, center lug',via:'Direct',to:'GPIO 1'},
+ {id:'pwm',c:'#fb7185',n:'Spindle PWM',from:'GPIO 2',via:'J8, R13 330 Ω',to:'PC817 pin 1'},
+ {id:'v33',c:'#ef4444',n:'3.3 V',from:'3V3 pin',via:'J8 3V3',to:'Board 3V3 rail and knob'},
+ {id:'gnd',c:'#0b0f19',n:'Ground',from:'G pins',via:'J8 GND',to:'Board ground copper, display, knob; on to G540 terminal 12 through J5'},
+ {id:'epow',c:'#b45309',n:'Encoder power',from:'12 V supply +, J4',via:'Board +12V rail',to:'Brown wire of all three encoders (J1, J2, J3)'},
+ {id:'e0v',c:'#3b82f6',n:'Encoder 0 V',from:'12 V supply −, J4',via:'Board GND rail',to:'Blue wire of all three encoders'},
+ {id:'ehigh',c:'#fdba74',n:'Controller HIGH',from:'PC817 pin 4',via:'J9, isolated side',to:'Lathe pot HIGH'},
+ {id:'ewip',c:'#fef08a',n:'Controller WIPER',from:'PC817 pin 3',via:'J9, isolated side',to:'Lathe pot WIPER'},
+ {id:'elow',c:'#a8a29e',n:'Controller LOW',from:'R14 and C1',via:'J9, isolated side',to:'Lathe pot LOW'}
+];
+const HP_PARTS=[
+ ['R1','2.2 kΩ','J1 A (X encoder black), on to GPIO 7','3V3 rail'],['R2','2.2 kΩ','J1 B (X encoder white), on to GPIO 15','3V3 rail'],
+ ['R3','2.2 kΩ','J2 A (Z encoder black), on to GPIO 16','3V3 rail'],['R4','2.2 kΩ','J2 B (Z encoder white), on to GPIO 17','3V3 rail'],
+ ['R5','10 kΩ','J3 A (spindle black), also J5 T2','Q1 base'],['R6','10 kΩ','Q1 collector, on to GPIO 4','3V3 rail'],
+ ['R7','10 kΩ','J3 B (spindle white), also J5 T3','Q2 base'],['R8','10 kΩ','Q2 collector, on to GPIO 5','3V3 rail'],
+ ['R9','10 kΩ','J3 Z (spindle orange), also J5 T1','Q3 base'],['R10','10 kΩ','Q3 collector, on to GPIO 6','3V3 rail'],
+ ['R11 (optional)','10 kΩ','J6 pin 16 (charge pump)','Q4 base'],['R12 (optional)','10 kΩ','Q4 collector, on to GPIO 18','3V3 rail'],
+ ['Q1–Q3','2N3904','Emitter to the GND rail','Collector and base as above'],['Q4 (optional)','2N3904','Emitter to the GND rail','Collector and base as above'],
+ ['R13','330 Ω','J8 GPIO 2','U1 pin 1'],['U1','PC817','Pin 2 to the ground copper','Pin 4 to J9 HIGH, pin 3 to J9 WIPER'],
+ ['R14','4.7 kΩ','J9 WIPER (U1 pin 3)','J9 LOW'],['C1','10 µF','+ lead to J9 WIPER','− lead to J9 LOW'],
+ ['C2','100 µF','+ lead to the 3V3 rail','− lead to the GND rail'],['C3','0.1 µF','3V3 rail','GND rail'],
+ ['J1','4-way terminal','X encoder: +12V, A, 0V/SH, B','+12V to the 12 V rail; 0V/SH (blue wire and shield together) to the ground copper'],['J2','4-way terminal','Z encoder: +12V, A, 0V/SH, B','As J1'],
+ ['J3','5-way terminal','Spindle encoder: +12V, 0V/SH, A, B, Z','As J1'],['J4','2-way terminal','12 V supply: +12V, GND','Top left corner. +12V runs straight down to J3'],
+ ['J5','4-way terminal','To G540: T2, T3, T1, T12','T2, T3, T1 to the spindle A, B, Z lines; T12 to the GND rail'],['J6 (optional)','2-way terminal','DB25 tap: pin 16, GND','Pin 16 to R11; GND (DB25 pin 18) to the GND rail'],
+ ['J7','4-way terminal','To the ESP32: GPIO 4, 5, 6, 18','Spindle A, B, Z and charge pump, from the inverter collectors'],
+ ['J8','7-way terminal','To the ESP32: GPIO 2, GND, GPIO 7, 15, 16, 3V3, 17','GPIO 2 to R13; 3V3 feeds the board rail; GND is the board ground'],['J9','3-way terminal','To the lathe: HIGH, WIPER, LOW','<b>Isolated.</b> Never joined to any other ground'],
+ ['V1–V3','Via pins','+12V: the top trace takes it from J3 to J1 and J2','Bare wire through the hole, soldered on both sides'],['V4–V7','Via pins','3V3: the top trace joins the four 3V3 strips','Bare wire through the hole, soldered on both sides'],
+ ['V8–V15','Via pins','GND: tie the top ground copper to the bottom ground','Bare wire through the hole, soldered on both sides']
+];
+let hpBuilt=false,hpPicked=null;
+function hpTab(name){document.querySelectorAll('.hp-pane').forEach(p=>p.classList.toggle('hidden',p.dataset.hp!==name));document.querySelectorAll('#hpTabs button').forEach(b=>b.classList.toggle('on',b.textContent===name));const d=$('dlgHelp');d.scrollTop=0}
+const HP_T=(x,yy,s,o='')=>'<text x="'+x+'" y="'+yy+'" '+o+'>'+s+'</text>',HP_BOX=(x,yy,ww,h,fill='#1e293b')=>'<rect x="'+x+'" y="'+yy+'" width="'+ww+'" height="'+h+'" rx="6" fill="'+fill+'" stroke="#475569"/>',HP_DOT=(x,yy,c)=>'<circle cx="'+x+'" cy="'+yy+'" r="4.5" fill="'+c+'" stroke="#e6edf7" stroke-width="1"/>';
+function hpDiagram(){const y=n=>70+(n-1)*26,w=id=>HP_WIRES.find(x=>x.id===id).c,L=510,R=690,BK='#0b0f19',WH='#f8fafc',OR='#f97316',t=HP_T,box=HP_BOX,dot=HP_DOT,
+  seg=(d,c)=>(c===BK?'<path d="'+d+'" stroke="#e6edf7" stroke-width="5"/>':'')+'<path d="'+d+'" stroke="'+c+'" stroke-width="3"/>',
+  g=(id,d,extra='')=>'<g data-w="'+id+'" fill="none" stroke-linejoin="round">'+seg(d,w(id))+extra+'</g>';
+ let s='<svg viewBox="0 0 1180 730" role="img" aria-label="System wiring diagram: three encoders, the interface board, the G540, the display, the knob and the lathe controller connected to the ESP32-S3">';
+ s+=box(L,40,R-L,590,'#123027')+'<rect x="560" y="44" width="80" height="16" fill="#334155"/>'+t(600,56,'antenna','text-anchor="middle" class="m"')+box(555,300,90,70,'#0f172a')+t(600,330,'ESP32-S3','text-anchor="middle" font-weight="700"')+t(600,348,'DevKitC-1','text-anchor="middle" class="m"');
+ const usedL={'3V3':1,'4':1,'5':1,'6':1,'7':1,'15':1,'16':1,'17':1,'18':1,'8':1,'9':1,'10':1,'11':1,'12':1,'5V':1,'G':1},usedR={'1':1,'2':1};
+ HP_J1.forEach((p,i)=>{const u=usedL[p];s+='<circle cx="'+L+'" cy="'+y(i+1)+'" r="5" fill="'+(u?'#fde047':'#475569')+'"/>'+t(L+11,y(i+1)+4,p,'class="'+(u?'hp-pin':'m')+'"')});
+ HP_J3.forEach((p,i)=>{const u=usedR[p]||(p==='G'&&i===21);s+='<circle cx="'+R+'" cy="'+y(i+1)+'" r="5" fill="'+(u?'#fde047':'#475569')+'"/>'+t(R-11,y(i+1)+4,p,'text-anchor="end" class="'+(u?'hp-pin':'m')+'"')});
+ s+='<rect x="548" y="628" width="32" height="14" fill="#94a3b8"/>'+t(586,656,'USB','class="m"')+'<rect x="620" y="628" width="32" height="14" fill="#94a3b8"/>'+t(636,656,'UART','text-anchor="middle" class="m"');
+ // Interface board
+ const bTop=y(4)-22,bBot=y(11)+16;s+=box(330,bTop,120,bBot-bTop,'#16263f')+t(390,bTop-8,'Interface board','text-anchor="middle" font-weight="700"');
+ [['Q1 inverter',4],['Q2 inverter',5],['Q3 inverter',6],['R1 2.2 kΩ',7],['R2 2.2 kΩ',8],['R3 2.2 kΩ',9],['R4 2.2 kΩ',10],['Q4 inverter',11]].forEach(r=>{s+=t(390,y(r[1])+4,r[0],'text-anchor="middle" class="m"')});
+ // Encoders, with their real cable colors as far as the board
+ const enc=(name,sub,rows,cols,ids)=>{const top=y(rows[0])-12,bot=y(rows[rows.length-1])+12,mid=(top+bot)/2;let a=box(40,top,96,bot-top,'#1f2937')+t(48,mid-2,name,'font-weight="700"')+t(48,mid+12,sub,'class="m"');
+  rows.forEach((r,i)=>{const yy=y(r);a+='<g data-w="'+ids[i]+'" fill="none">'+seg('M136 '+yy+'H330',cols[i])+seg('M450 '+yy+'H'+L,w(ids[i]))+'</g>'+t(128,yy+4,['A','B','Z'][i],'text-anchor="end" class="m"')});return a};
+ s+=enc('Spindle','100 P/R',[4,5,6],[BK,WH,OR],['enca','encb','encz'])+enc('X','600 P/R',[7,8],[BK,WH],['xa','xb'])+enc('Z','600 P/R',[9,10],[BK,WH],['za','zb']);
+ s+=t(232,y(4)-6,'black','text-anchor="middle" class="m"')+t(232,y(5)-6,'white','text-anchor="middle" class="m"')+t(232,y(6)-6,'orange','text-anchor="middle" class="m"')+t(232,y(7)-6,'black','text-anchor="middle" class="m"')+t(232,y(8)-6,'white','text-anchor="middle" class="m"')+t(232,y(9)-6,'black','text-anchor="middle" class="m"')+t(232,y(10)-6,'white','text-anchor="middle" class="m"');
+ s+=box(40,y(11)-12,96,24)+t(46,y(11)+4,'DB25 pin 16','style="font-size:12px"')+g('cp','M136 '+y(11)+'H330')+g('cp','M450 '+y(11)+'H'+L)+t(46,y(11)+28,'Optional','class="m"');
+ // Encoder power buses on the left
+ const sy=420,pX=20,nX=30,ePins=[[y(4)+4,y(5)+10],[y(7)+0,y(8)+0],[y(9)+0,y(10)+0]];
+ s+=box(40,sy,96,58)+t(88,sy+22,'12 V supply','text-anchor="middle" font-weight="700"')+t(88,sy+40,'5–24 V, 0.5 A','text-anchor="middle" class="m"');
+ let pp='M40 '+(sy+16)+'H'+pX+'V'+(ePins[0][0]-8),nn='M40 '+(sy+40)+'H'+nX+'V'+(ePins[0][1]-4),pd='',nd='';
+ [[y(4)-6,y(6)+4],[y(7)-4,y(8)+4],[y(9)-4,y(10)+4]].forEach((r,i)=>{pp+='M'+pX+' '+r[0]+'H40';nn+='M'+nX+' '+r[1]+'H40';if(i){pd+=dot(pX,r[0],w('epow'));nd+=dot(nX,r[1],w('e0v'))}});
+ s+=g('epow',pp,pd)+g('e0v',nn,nd)+t(46,sy+74,'brown +12V','class="m"')+t(46,sy+88,'blue 0 V','class="m"');
+ // Interface board to the G540 (J5), running down the left of the display
+ const gy=470;s+=box(170,gy,120,110)+t(230,gy-8,'G540','text-anchor="middle" font-weight="700"')+t(282,gy+24,'Terminal 2','text-anchor="end"')+t(282,gy+48,'Terminal 3','text-anchor="end"')+t(282,gy+72,'Terminal 1','text-anchor="end"')+t(282,gy+96,'Terminal 12','text-anchor="end"');
+ s+=g('enca','M336 '+bBot+'V'+(gy+20)+'H290')+g('encb','M345 '+bBot+'V'+(gy+44)+'H290')+g('encz','M354 '+bBot+'V'+(gy+68)+'H290')+t(318,bBot+14,'J5','class="m"');
+ // Display, wired straight to the ESP32
+ const dx=364,dTop=380,dBot=606;s+=box(dx,dTop,86,dBot-dTop,'#111827')+t(dx+43,dTop-8,'Display 2.8 in','text-anchor="middle" font-weight="700"')+'<rect x="'+(dx+8)+'" y="'+(dTop+46)+'" width="44" height="34" rx="3" fill="#0a1020" stroke="#38bdf8"/>'+t(dx+30,dTop+68,'0.48','text-anchor="middle" style="font-size:11px;fill:#38bdf8;font-weight:700"');
+ const dp=[['RST',392,'tft_rst','M'+L+' '+y(12)+'H472V392H450'],['LED',416,'tft_led','M'+L+' '+y(2)+'H486V416H450'],['DC',y(15),'tft_dc','M'+L+' '+y(15)+'H450'],['CS',y(16),'tft_cs','M'+L+' '+y(16)+'H450'],['MOSI',y(17),'tft_mosi','M'+L+' '+y(17)+'H450'],['SCK',y(18),'tft_sck','M'+L+' '+y(18)+'H450'],['VCC',560,'tft_vcc','M'+L+' '+y(21)+'H478V560H450']];
+ dp.forEach(p=>{s+=t(444,p[1]+4,p[0],'text-anchor="end" class="m"')+g(p[2],p[3],p[2]==='tft_led'?dot(L,y(2),w('tft_led')):'')});s+=t(444,588,'GND','text-anchor="end" class="m"');
+ // Power and ground
+ s+=g('v33','M'+L+' '+y(1)+'H442V'+bTop+'M'+L+' '+y(1)+'H496V16H760V122',dot(L,y(1),w('v33')));
+ s+=g('gnd','M'+L+' '+y(22)+'H462V'+(bBot-6)+'H450M462 584H450M462 '+y(22)+'V650H'+nX+'V'+(sy+40)+'M306 650V'+(gy+92)+'H290M'+R+' '+y(22)+'H735V174M735 288H870M735 174H800',dot(462,584,'#e6edf7')+dot(462,y(22),'#e6edf7')+dot(nX,sy+40,'#e6edf7')+dot(306,650,'#e6edf7'));
+ s+=dot(735,288,'#e6edf7');
+ // Knob
+ s+=box(800,96,110,96)+t(855,90,'Speed knob, 10 kΩ','text-anchor="middle" font-weight="700"')+'<circle cx="875" cy="144" r="24" fill="#334155" stroke="#94a3b8"/><path d="M875 144L890 126" stroke="#e6edf7" stroke-width="3"/>';
+ s+=t(806,126,'3V3','class="m"')+t(806,152,'Wiper','class="m"')+t(806,178,'GND','class="m"');
+ s+=g('v33','M760 122H800',dot(760,122,w('v33')))+g('knob','M'+R+' '+y(4)+'H800');
+ // PC817, filter and controller
+ s+=g('pwm','M'+R+' '+y(5)+'H712V262H800')+'<rect x="800" y="252" width="44" height="20" rx="3" fill="#d6b98c"/>'+t(822,266,'330 Ω','text-anchor="middle" style="fill:#1e293b"')+g('pwm','M844 262H870');
+ s+=box(870,240,80,70)+t(910,278,'PC817','text-anchor="middle" font-weight="700"')+t(876,258,'1','class="m"')+t(876,300,'2','class="m"')+t(944,258,'4','text-anchor="end" class="m"')+t(944,300,'3','text-anchor="end" class="m"')+t(910,326,'on the interface board','text-anchor="middle" class="m"');
+ s+='<path d="M910 212V238M910 334V378" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6 4"/>'+t(910,206,'Isolation barrier','text-anchor="middle" style="fill:#f59e0b"');
+ s+=g('ehigh','M950 262H1000V250H1040')+g('ewip','M950 288H1040',dot(975,288,w('ewip'))+dot(1010,288,w('ewip')))+g('elow','M975 288V300M975 330V345H1020V326H1040M1010 288V312M1010 322V345');
+ s+='<rect x="965" y="300" width="20" height="30" fill="#d6b98c"/>'+t(975,362,'4.7 kΩ','text-anchor="middle" class="m"')+'<path d="M998 312H1022M998 322H1022" stroke="#e6edf7" stroke-width="3"/>'+t(1028,362,'10 µF','text-anchor="middle" class="m"');
+ s+=box(1040,225,130,125,'#3b1a1a')+t(1105,216,'Lathe controller','text-anchor="middle" font-weight="700"')+t(1048,254,'HIGH')+t(1048,292,'WIPER')+t(1048,330,'LOW')+t(1105,372,'Replaces the speed pot','text-anchor="middle" class="m"')+t(1105,390,'May be at mains voltage','text-anchor="middle" style="fill:#f87171;font-weight:700"');
+ s+=box(530,676,140,44)+t(600,696,'USB charger','text-anchor="middle" font-weight="700"')+t(600,712,'5 V, 1 A or more','text-anchor="middle" class="m"')+'<path d="M564 642V676" stroke="#94a3b8" stroke-width="4"/>';
+ return s+'</svg>'}
+// The interface board's full circuit. Power symbols stand for the rails, so no rail wires cross the signals.
+function hpBoard(){const t=HP_T,c=id=>HP_WIRES.find(x=>x.id===id).c,
+  W=(d,col,wd=2.5)=>'<path d="'+d+'" stroke="'+col+'" stroke-width="'+wd+'" fill="none"/>',
+  dot=(x,y)=>'<circle cx="'+x+'" cy="'+y+'" r="3.5" fill="#e6edf7"/>',
+  p33=(x,y)=>W('M'+x+' '+y+'V'+(y-10),'#ef4444')+W('M'+(x-9)+' '+(y-10)+'H'+(x+9),'#ef4444',3)+t(x,y-15,'3V3','text-anchor="middle" style="fill:#ef4444;font-size:11px;font-weight:700"'),
+  p12=(x,y)=>W('M'+x+' '+y+'H'+(x+14),'#f59e0b')+t(x+18,y+4,'+12V','style="fill:#f59e0b;font-size:11px;font-weight:700"'),
+  gnd=(x,y)=>W('M'+x+' '+y+'V'+(y+8),'#e6edf7')+W('M'+(x-9)+' '+(y+8)+'H'+(x+9)+'M'+(x-6)+' '+(y+12)+'H'+(x+6)+'M'+(x-3)+' '+(y+16)+'H'+(x+3),'#e6edf7',2),
+  rv=(x,y1,y2,l)=>W('M'+x+' '+y1+'V'+y2,'#94a3b8',2)+'<rect x="'+(x-7)+'" y="'+(Math.min(y1,y2)+(Math.abs(y2-y1)-24)/2)+'" width="14" height="24" fill="#d6b98c"/>'+t(x+11,(y1+y2)/2+4,l,'style="font-size:11px"'),
+  rh=(x1,x2,y,l)=>W('M'+x1+' '+y+'H'+x2,'#94a3b8',2)+'<rect x="'+((x1+x2)/2-14)+'" y="'+(y-7)+'" width="28" height="14" fill="#d6b98c"/>'+t((x1+x2)/2,y-11,l,'text-anchor="middle" style="font-size:11px"'),
+  net=(x,y,l,col)=>t(x,y+4,l,'style="fill:'+col+';font-size:12px;font-weight:700"'),
+  term=(x,y,pins,name,right)=>{let a='<rect x="'+(x-30)+'" y="'+(pins[0][1]-12)+'" width="30" height="'+(pins[pins.length-1][1]-pins[0][1]+24)+'" rx="3" fill="#166534" stroke="#22c55e"/>'+t(x-15,pins[0][1]-18,name,'text-anchor="middle" style="font-weight:700;font-size:12px"');
+   pins.forEach(p=>{a+='<circle cx="'+(x-15)+'" cy="'+p[1]+'" r="5" fill="#cbd5e1" stroke="#475569"/>'+(right?t(x+6,p[1]+4,p[0],'style="font-size:11px;fill:#8fa1c2"'):t(x-36,p[1]+4,p[0],'text-anchor="end" style="font-size:11px;fill:#8fa1c2"'))});return a},
+  npn=(bx,by,col)=>{const cx=bx+16;return '<circle cx="'+cx+'" cy="'+by+'" r="17" fill="none" stroke="#94a3b8" stroke-width="1.5"/>'+W('M'+bx+' '+by+'H'+(cx-6),'#e6edf7',2)+W('M'+(cx-6)+' '+(by-10)+'V'+(by+10),'#e6edf7',3)+W('M'+(cx-6)+' '+(by-5)+'L'+(cx+10)+' '+(by-14)+'V'+(by-24)+'M'+(cx-6)+' '+(by+5)+'L'+(cx+10)+' '+(by+14)+'V'+(by+24),'#e6edf7',2)},
+  inv=(inX,y,inCol,q,rb,rc,gpio,outCol)=>{const bx=inX+90,cx=bx+26,top=y-24,bot=y+24;return rh(inX,bx,y,rb+' 10 kΩ')+npn(bx,y)+t(bx+10,y+38,q,'style="font-size:11px;fill:#8fa1c2"')+W('M'+cx+' '+top+'V'+(top-8),'#e6edf7',2)+dot(cx,top-8)+rv(cx,top-8,top-44,rc+' 10 kΩ')+p33(cx,top-44)+W('M'+cx+' '+(top-8)+'H'+(cx+60),outCol,3)+net(cx+64,top-8,'→ '+gpio,outCol)+gnd(cx,bot)};
+ let s='<svg viewBox="0 0 1180 720" role="img" aria-label="Interface board circuit: terminals J1 to J9, pull-up resistors R1 to R4, inverters Q1 to Q4 with R5 to R12, and the isolated PC817 spindle control section">';
+ s+='<rect x="8" y="8" width="1164" height="704" rx="10" fill="#0f2a1c" stroke="#22c55e" stroke-opacity=".4"/>';
+ // Section 1: axis encoders, shifted right so the terminal labels fit
+ s+=t(20,30,'X and Z encoders','style="font-weight:700;fill:#38bdf8"')+'<g transform="translate(40 0)">';
+ const axis=(J,base,ida,idb,ra,rb,ga,gb)=>{const A=base+70,B=base+150;let a=term(80,0,[['+12V brown',base],['0V blue + shield',base+22],['A black',A],['B white',B]],J);
+  a+=W('M80 '+base+'H96','#f59e0b')+p12(96,base)+W('M80 '+(base+22)+'H100','#e6edf7',2)+gnd(100,base+22);
+  a+=W('M80 '+A+'H330',c(ida),3)+dot(200,A)+rv(200,A,A-46,ra+' 2.2 kΩ')+p33(200,A-46)+net(336,A,'→ '+ga,c(ida));
+  a+=W('M80 '+B+'H330',c(idb),3)+dot(250,B)+rv(250,B,B-46,rb+' 2.2 kΩ')+p33(250,B-46)+net(336,B,'→ '+gb,c(idb));return a};
+ s+=axis('J1 X',60,'xa','xb','R1','R2','GPIO 7','GPIO 15')+axis('J2 Z',270,'za','zb','R3','R4','GPIO 16','GPIO 17');
+ // 12 V in
+ s+=term(80,0,[['+ supply',490],['− supply',512]],'J4 12V')+W('M80 490H96','#f59e0b')+p12(96,490)+W('M80 512H100','#e6edf7',2)+gnd(100,512);
+ // Isolated spindle control
+ s+='<rect x="-20" y="548" width="560" height="156" rx="8" fill="none" stroke="#f59e0b" stroke-dasharray="6 5"/>'+t(-10,566,'Spindle control. Keep 8 mm of bare board around the right half','style="fill:#f59e0b;font-size:12px"');
+ s+=term(80,0,[['GPIO 2',600],['ESP32 GND',656]],'J8')+rh(80,190,600,'R13 330 Ω')+W('M190 600H216','#fb7185',3)+W('M80 656H216','#e6edf7',2.5);
+ s+='<rect x="216" y="580" width="70" height="96" rx="5" fill="#1e293b" stroke="#94a3b8"/>'+t(251,632,'U1','text-anchor="middle" font-weight="700"')+t(251,648,'PC817','text-anchor="middle" style="font-size:11px;fill:#8fa1c2"')+t(222,604,'1','style="font-size:11px"')+t(222,660,'2','style="font-size:11px"')+t(280,604,'4','text-anchor="end" style="font-size:11px"')+t(280,660,'3','text-anchor="end" style="font-size:11px"');
+ s+=W('M251 572V580M251 676V700','#f59e0b',2);
+ s+=W('M286 600H485',c('ehigh'),3)+W('M286 656H485',c('ewip'),3)+dot(310,656)+dot(392,656)+W('M310 656V664M310 688V692H485M392 656V670M392 680V692','#a8a29e',2.5)+'<rect x="303" y="664" width="14" height="24" fill="#d6b98c"/>'+t(322,682,'R14 4.7 kΩ','style="font-size:11px"')+W('M380 670H404M380 680H404','#e6edf7',3)+t(408,680,'C1 10 µF','style="font-size:11px"')+t(382,666,'+','style="font-size:11px"');
+ s+=term(500,0,[['HIGH',600],['WIPER',656],['LOW',692]],'J9',true).replace(/x="470"/g,'x="470"')+W('M485 600H485','#000',0)+'</g>';
+ // Section 2: spindle encoder, inverters and the G540 link
+ s+=t(600,30,'Spindle encoder, inverters and G540','style="font-weight:700;fill:#facc15"');
+ const sp=[['A black','enca','R5','R6','Q1','GPIO 4','T2',150],['B white','encb','R7','R8','Q2','GPIO 5','T3',290],['Z orange','encz','R9','R10','Q3','GPIO 6','T1',430]];
+ s+=term(690,0,[['+12V brown',66],['0V blue + shield',88]].concat(sp.map(r=>[r[0],r[7]])),'J3');
+ s+=W('M690 66H706','#f59e0b')+p12(706,66)+W('M690 88H710','#e6edf7',2)+gnd(710,88);
+ sp.forEach(r=>{const yy=r[7],col=c(r[1]);s+=W('M690 '+yy+'H760',col,3)+dot(730,yy)+W('M730 '+yy+'V'+(yy+44),col,2)+net(736,yy+48,'→ J5 '+r[6]+' (G540)',col)+inv(760,yy,col,r[4],r[2],r[3],r[5],col)});
+ // J5 to the G540
+ s+=term(1150,0,[['T2 ← Spindle A',520],['T3 ← Spindle B',542],['T1 ← Spindle Z',564],['T12 ← GND',586]],'J5 G540');
+ s+=W('M1150 586H1162','#e6edf7',2)+gnd(1162,586);
+ // Section 3: optional charge pump, J7 to the ESP32, rail capacitors
+ s+=t(600,520,'Optional charge pump','style="font-weight:700;fill:#2dd4bf"');
+ s+=term(690,0,[['DB25 pin 16',580],['DB25 pin 18',640]],'J6')+W('M690 640H710','#e6edf7',2)+gnd(710,640)+W('M690 580H760',c('cp'),3)+inv(760,580,c('cp'),'Q4','R11','R12','GPIO 18',c('cp'));
+ s+=term(1150,0,[['J7 GPIO 4',150],['J7 GPIO 5',172],['J7 GPIO 6',194],['J8 GPIO 7',216],['J8 GPIO 15',238],['J8 GPIO 16',260],['J8 GPIO 17',282],['J7 GPIO 18',304],['J8 3V3',326],['J8 GND',348]],'J7, J8');
+ s+=W('M1150 326H1160','#ef4444')+p33(1160,326)+W('M1150 348H1160','#e6edf7',2)+gnd(1160,348);
+ s+=t(1000,392,'C2 100 µF and C3 0.1 µF','style="font-size:11px"')+t(1000,406,'across 3V3 and GND, by J8','style="font-size:11px;fill:#8fa1c2"');
+ s+=t(1000,430,'Each "→ GPIO" line runs to','style="font-size:11px;fill:#8fa1c2"')+t(1000,444,'the J7 or J8 pin of that name','style="font-size:11px;fill:#8fa1c2"');
+ return s+'</svg>'}
+// The G540's terminal block and DB25, with the four wires from J5 and the optional tap.
+function hpG540(){const t=HP_T,c=id=>HP_WIRES.find(x=>x.id===id).c,names=['IN 1','IN 2','IN 3','IN 4','OUT 1','OUT 2','VFD GND','VFD OUT','VFD +10V','DISABLE','+18–50V','GND'],
+  use={1:['encz','J5 T1','Spindle index'],2:['enca','J5 T2','Spindle A'],3:['encb','J5 T3','Spindle B'],12:['gnd','J5 T12','Common ground']};
+ let s='<svg viewBox="0 0 1180 330" role="img" aria-label="G540 12-pin terminal block with terminals 1, 2, 3 and 12 connected, terminal 11 marked never connect, and the DB25 with pins 16 and 18 marked">';
+ s+=t(720,80,'G540 main terminal block','style="font-weight:700"')+t(720,98,'Wires from J5 on the interface board','style="font-size:12px;fill:#8fa1c2"')+'<rect x="40" y="40" width="660" height="70" rx="6" fill="#14532d" stroke="#22c55e"/>';
+ for(let i=1;i<=12;i++){const x=40+(i-0.5)*55,u=use[i],bad=i===11;s+='<rect x="'+(x-20)+'" y="50" width="40" height="40" rx="4" fill="#1e293b" stroke="'+(u?'#fde047':bad?'#ef4444':'#475569')+'" stroke-width="'+(u||bad?2.5:1)+'"/><circle cx="'+x+'" cy="70" r="11" fill="#94a3b8"/><path d="M'+(x-7)+' 70H'+(x+7)+'" stroke="#334155" stroke-width="3"/>'+t(x,104,String(i),'text-anchor="middle" style="font-weight:700"')+'<text transform="translate('+(x+4)+' 122) rotate(40)" style="font-size:11px;fill:'+(u?'#fde047':bad?'#f87171':'#8fa1c2')+'">'+names[i-1]+'</text>';
+  if(u){const col=u[0]==='gnd'?'#e6edf7':c(u[0]);s+='<path d="M'+x+' 50V30" stroke="'+col+'" stroke-width="3"/>'+t(x,24,u[1],'text-anchor="middle" style="font-size:12px;font-weight:700;fill:'+col+'"');}
+  if(bad)s+='<path d="M'+(x-14)+' 56L'+(x+14)+' 84M'+(x+14)+' 56L'+(x-14)+' 84" stroke="#ef4444" stroke-width="3"/>';}
+ s+=t(40,190,'Terminal 10: your existing E-stop. Terminal 11: never connect anything from this project.','style="font-size:12px;fill:#f87171"');
+ // DB25
+ s+=t(40,226,'DB25 (between UC100 and G540)','style="font-weight:700"')+'<path d="M40 240H560L540 316H60Z" fill="#334155" stroke="#94a3b8"/>';
+ for(let i=1;i<=13;i++){const x=60+(i-1)*38.5;s+='<circle cx="'+x+'" cy="262" r="8" fill="#cbd5e1"/>'+t(x,284,String(i),'text-anchor="middle" style="font-size:10px;fill:#e6edf7"')}
+ for(let i=14;i<=25;i++){const x=79+(i-14)*38.5,on=i===16||i===18;s+='<circle cx="'+x+'" cy="300" r="8" fill="'+(on?'#2dd4bf':'#cbd5e1')+'" stroke="'+(on?'#e6edf7':'none')+'" stroke-width="2"/>'+t(x,322,String(i),'text-anchor="middle" style="font-size:10px;fill:'+(on?'#2dd4bf':'#e6edf7')+'"')}
+ s+=t(580,280,'Pin 16 charge pump and pin 18 ground: optional tap to J6.','style="font-size:12px;fill:#2dd4bf"')+t(580,300,'Every other pin passes straight through and is not tapped.','style="font-size:12px;fill:#8fa1c2"');
+ return s+'</svg>'}
+// A preview of the machine display, laid out as displayTask() in main.cpp draws it.
+function hpScreen(){const t=HP_T,big='font-family:Consolas,\'DejaVu Sans Mono\',monospace;font-weight:700;letter-spacing:-2px';let s='<svg viewBox="0 0 320 240" role="img" aria-label="Preview of the machine display: X and Z positions in large digits, then spindle RPM with the target, a speed bar and the loaded insert" style="max-width:480px;border:6px solid #020617;border-radius:6px">';
+ s+='<rect width="320" height="240" fill="#0a1020"/>';
+ const row=(y,name,sub,col)=>'<rect x="2" y="'+(y+2)+'" width="316" height="76" rx="6" fill="#111a2e"/><rect x="2" y="'+(y+2)+'" width="4" height="76" fill="'+col+'"/>'+t(11,y+32,name,'style="font-size:22px;fill:'+col+';font-weight:700"')+t(11,y+66,sub,'style="font-size:11px;fill:#8fa1c2"');
+ [['X','DIA','0.4820',0],['Z','LONG','-1.2530',80]].forEach(a=>{s+=row(a[3],a[0],a[1],'#38bdf8')+t(314,a[3]+63,a[2],'text-anchor="end" textLength="'+(a[2].length>6?272:250)+'" lengthAdjust="spacingAndGlyphs" style="font-size:66px;fill:#38bdf8;'+big+'"')});
+ s+=row(160,'S','FWD','#22c55e')+t(206,223,'1240','text-anchor="end" textLength="158" lengthAdjust="spacingAndGlyphs" style="font-size:62px;fill:#22c55e;'+big+'"');
+ s+=t(216,184,'SET 1250','style="font-size:12px"')+'<rect x="216" y="192" width="96" height="10" rx="3" fill="#1e2a44"/><rect x="216" y="192" width="59" height="10" rx="3" fill="#22c55e"/><rect x="275" y="188" width="3" height="18" fill="#e6edf7"/>'+t(216,224,'11 ER 20 UN','style="font-size:12px;fill:#fbbf24"');
+ return s+'</svg>'}
+function hpPick(id){hpPicked=hpPicked===id?null:id;const f=$('hpDiagram').firstChild;f.classList.toggle('hp-dim',!!hpPicked);f.querySelectorAll('g[data-w]').forEach(e=>e.classList.toggle('on',e.dataset.w===hpPicked));document.querySelectorAll('#hpWireRows tr').forEach(r=>r.classList.toggle('on',r.dataset.w===hpPicked));$('hpClear').disabled=!hpPicked}
+const HP_STEPS=[
+ ['Bench: prove the ESP32 first',[
+  ['Plug the ESP32 into the charger only, with nothing else attached. The blue LED should flash, then go solid or flash very fast.','If you use a clone board, press Test LEDs in Settings to confirm its LED pins.'],
+  ['Connect to the page and enter your Wi-Fi in Settings.','The Setup and checks tab has the details.'],
+  ['Unplug the ESP32. Do this every time before changing wiring.','']]],
+ ['Display',[
+  ['Wire the display straight to the ESP32: VCC to 5V, GND to G, CS to GPIO 10, RESET to 8, DC to 9, SDI (MOSI) to 11, SCK to 12, LED to 3V3.','Leave SDO (MISO) and all T_ touch pins unconnected. Keep these wires under about 20 cm.'],
+  ['Power up: the display should show the X, Z and spindle rows. Unplug again.','If it is blank, see Troubleshooting.']]],
+ ['Build the interface board (nothing connected to the lathe)',[
+  ['Mill side 1 from the _bottom.dxf file and drill every hole, then flip the board on the alignment pins, mill side 2 from the _top.dxf file and cut it out, including the slot under U1.','The Interface board tab has the milling steps and settings.'],
+  ['Before fitting anything, check the bare board with a meter, on both sides: no continuity between neighbouring traces, and none between the 3V3 strips, the +12V traces and the ground copper. On the top, check that no lead hole touches the ground copper around it.','Clear any copper whisker with a knife. It is far easier now than after soldering.'],
+  ['Fit the 15 via pins V1–V15 first: push a bare wire (a resistor leg offcut) through each gold-ringed hole, solder it on both sides and trim it flush.','V1–V3 carry +12V and V4–V7 carry 3V3 to the two top traces; V8–V15 join the top and bottom ground. Then check that +12V reads continuous from J4 to J1 and J2, and 3V3 from J8 to all four 3V3 strips.'],
+  ['Fit the resistors. R1–R4 (2.2 kΩ) and R6, R8, R10, R12 (10 kΩ) stand on end, with the body over the circled pad.','The Where each part goes table and the printed labels in the board picture show each one.'],
+  ['Fit Q1–Q4 (2N3904) with the flat face matching the outline, then U1 with its pin 1 dot at the marked corner.','Q4, R11 and R12 are only needed for the optional charge pump.'],
+  ['Fit C1 and C2 with the + lead on the pad marked +, then C3, then the screw terminals last.',''],
+  ['Check with a meter again: no short between 3V3, +12V and GND.','This catches the most common build fault.'],
+  ['Wire J7 to the ESP32: GPIO 4, 5, 6 and 18. Wire J8: GPIO 2, G, GPIO 7, 15, 16, 3V3 and 17.','Pin names are printed beside each screw.'],
+  ['Power up and measure each axis input at the ESP32: about 3.3 V with nothing connected. Unplug again.','']]],
+ ['Knob',[
+  ['Wire the pot: outer lugs to 3V3 and GND, and the center lug to GPIO 1.','If the speed rises the wrong way, swap the outer lugs.']]],
+ ['Mount the X and Z encoders (machine off)',[
+  ['Choose where each encoder will be driven. The free end of the leadscrew is best. The back shaft of the stepper also works if it has one.','On the leadscrew, the DRO includes any backlash between motor and screw. Neither position sees backlash in the nut.'],
+  ['Make a rigid bracket that holds the encoder in line with the shaft.','The bracket must not flex. Any movement becomes a DRO error.'],
+  ['Join encoder and shaft with a flexible coupling, aligned by eye as closely as you can.','Never connect the encoder shaft rigidly; misalignment wears out its bearings.'],
+  ['Write down the travel per encoder revolution: the screw lead, multiplied by any gearing between screw and encoder.','You enter it in Settings. Calibration fine-tunes it later.'],
+  ['Turn each handwheel through its full travel and check nothing binds or rubs.','']]],
+ ['Connect the cables (all power off)',[
+  ['X encoder to J1: brown +12V, blue 0V, black A, white B. Put the shield in the 0V/SH screw with the blue wire. Insulate the orange wire.','Leave the shield unconnected at the encoder end.'],
+  ['Z encoder to J2, the same way.',''],
+  ['Spindle encoder to J3: brown +12V, blue 0V, black A, white B, orange Z, shield in 0V/SH with the blue wire.','If it is already wired to the G540, move those wires to J3; J5 now feeds the G540.'],
+  ['Run a 4-core cable from J5 to the G540: T2 to terminal 2, T3 to terminal 3, T1 to terminal 1, T12 to terminal 12.','Use stranded wire in the G540 terminals, and do not fit wire plugs. The G540 tab shows every terminal.'],
+  ['Connect the 12 V supply to J4.','<b>Never use G540 terminal 11.</b> It can be up to 50 V.'],
+  ['Route encoder cables away from motor and mains wiring.','']]],
+ ['Optional: CNC Online signal',[
+  ['Fit a DB25 breakout between the UC100 and the G540, with all power off.','Use a meter to confirm all 25 pins pass straight through.'],
+  ['Wire DB25 pin 16 to J6 pin 16, and DB25 pin 18 to J6 GND.','The DRO card then shows CNC Online while UCCNC is running.']]],
+ ['Connect spindle control last (lathe unplugged)',[
+  ['<b>Unplug the lathe from the wall</b> and wait for the controller to discharge.','The pot terminals may be at mains voltage when powered.'],
+  ['Identify HIGH, WIPER and LOW at the speed pot and label them. Measure the voltage between HIGH and LOW with the lathe powered, then unplug again.','It must be under 35 V, the PC817\'s limit. It is usually 5–10 V.'],
+  ['Disconnect the pot and wire HIGH, WIPER and LOW to J9.',''],
+  ['Check that J8 GPIO 2 is wired to the ESP32.','R13, U1, R14 and C1 are already on the board.'],
+  ['Check with a meter, with everything unplugged: there must be no continuity between ESP32 GND and any J9 terminal.','<b>If there is continuity, find it before going further.</b>'],
+  ['Insulate the controller wires and secure them so they cannot touch the low-voltage side.','']]],
+ ['Finish, power up and calibrate',[
+  ['Mount the board, ESP32 and display in the enclosure and add strain relief to every cable.','Keep the enclosure in reach of Wi-Fi, and away from chips and coolant.'],
+  ['Turn on the encoder supply, the G540 and the PC, then the ESP32. Leave the lathe unplugged for now.','Check UCCNC still sees the spindle inputs, as on the Setup and checks tab.'],
+  ['Enter the encoder settings and travel per revolution in Settings, then turn each handwheel and check the DRO follows.',''],
+  ['Calibrate X and Z with a dial indicator.','The Setup and checks tab has the method.'],
+  ['Set Max RPM to 500 in Settings, and set the target to 0.','This limits the knob and the web target during first tests.'],
+  ['With the chuck empty and the area clear, plug in the lathe and raise the target slowly to 200 RPM.','Be ready to hit the E-stop. If the spindle jumps to full speed, stop and go to Troubleshooting.'],
+  ['Finish the remaining tests on the Setup and checks tab, then raise Max RPM to your lathe\'s limit.','']]]
+];
+function hpLoad(){try{return JSON.parse(localStorage.getItem('hpDone5')||'{}')}catch(e){return {}}}
+function hpSave(o){try{localStorage.setItem('hpDone5',JSON.stringify(o))}catch(e){}}
+function hpSteps(){const done=hpLoad();let n=0,tot=0,h='';HP_STEPS.forEach((sec,a)=>{h+='<h3>'+(a+1)+'. '+sec[0]+'</h3><div class="hp-steps">';sec[1].forEach((st,b)=>{const k=a+'.'+b;tot++;if(done[k])n++;h+='<label class="hp-step'+(done[k]?' done':'')+'"><input type="checkbox" data-k="'+k+'" '+(done[k]?'checked':'')+'><span><b class="hp-n">'+(a+1)+'.'+(b+1)+'</b> '+st[0]+(st[1]?'<small>'+st[1]+'</small>':'')+'</span></label>'});h+='</div>'});$('hpSteps').innerHTML=h;$('hpProgress').textContent=n+' of '+tot+' steps done. Ticks are saved in this browser.'}
+function hpReset(){hpSave({});hpSteps()}
+function hpInit(){if(hpBuilt)return;hpBuilt=true;$('hpTabs').innerHTML=[...document.querySelectorAll('.hp-pane')].map(p=>'<button onclick="hpTab(this.textContent)">'+p.dataset.hp+'</button>').join('');
+ $('hpDiagram').innerHTML=hpDiagram();$('hpBoard').innerHTML=hpBoard();$('hpG540').innerHTML=hpG540();$('hpScreen').innerHTML=hpScreen();
+ $('hpParts').innerHTML=HP_PARTS.map(p=>'<tr><td><b>'+p[0]+'</b></td><td>'+p[1]+'</td><td>'+p[2]+'</td><td>'+p[3]+'</td></tr>').join('');
+ $('hpWireRows').innerHTML=HP_WIRES.map(w=>'<tr data-w="'+w.id+'" tabindex="0" onclick="hpPick(\''+w.id+'\')" onkeydown="if(event.key===\'Enter\')hpPick(\''+w.id+'\')"><td><i class="hp-sw" style="background:'+w.c+'"></i></td><td><b>'+w.n+'</b></td><td>'+w.from+'</td><td>'+w.via+'</td><td>'+w.to+'</td></tr>').join('');
+ $('hpSteps').addEventListener('change',e=>{const k=e.target.dataset.k;if(!k)return;const o=hpLoad();if(e.target.checked)o[k]=1;else delete o[k];hpSave(o);hpSteps()});$('hpClear').disabled=true;hpSteps();hpTab('Start here')}
+// ---- views: the URL hash picks the page; each card's data-view lists the pages it appears on ----
+function applyView(){const links=[...document.querySelectorAll('nav a')],a=links.find(l=>l.hash===location.hash)||links[0],v=a.hash.slice(1);
+ links.forEach(l=>l.classList.toggle('on',l===a));$('views').classList.toggle('single',v!=='overview');
+ document.querySelectorAll('#views>section').forEach(s=>s.classList.toggle('hidden',!(s.dataset.view||'').split(' ').includes(v)))}
+function showView(){applyView();window.scrollTo(0,0)}
+window.addEventListener('hashchange',showView);showView();lvDraw();
+</script></body></html>

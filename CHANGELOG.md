@@ -13,6 +13,10 @@ Change either part, then bump its version and add an entry here.
 
 ## Firmware
 
+### 1.8.0
+- Display: smooth digits. The numbers were the library's 48 px seven-segment bitmap font scaled up 1.5×, which made every pixel a block. They are now anti-aliased glyphs (0–9, point, minus) from **Oswald Bold** (SIL Open Font License, `fonts/OFL.txt`) in three sizes: 120 px digits for the RPM-only view, 70 px for the DRO rows and the single-axis views, 57 px when a value has two digits before the point. Each number uses the largest size that fits its space, so nothing is ever scaled.
+- The fonts are `fonts/d_big.vlw`, `d_mid.vlw` and `d_small.vlw` (about 140 KB), linked into the firmware by `board_build.embed_files` and read straight from flash; `tools/make_vlw.py` regenerates them from the TTF. If they ever fail to load, the old bitmap font is used and the serial log says so.
+
 ### 1.7.0
 - Display: a **View** button in the Settings menu chooses what fills the screen: Everything (the three rows), **RPM only**, **X only**, **Z only**, or **X and Z**. The choice is saved. Pick RPM only until the axis encoders are fitted, so the screen does not show two axes at zero.
 - RPM only: the speed in digits up to 120 px tall, with direction, the target, a full-width speed bar with the target marked, the loaded tool or the alarm, encoder state, and a status line with CNC and Wi-Fi. X only and Z only: the axis in the same large digits, with the other axis and the spindle small underneath. X and Z: two tall rows.

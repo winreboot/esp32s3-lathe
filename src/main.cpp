@@ -391,12 +391,40 @@ const float DISP_MAX_SCALE = 1.5f;
 // (which flickers a little, but still shows the numbers).
 lgfx::LovyanGFX *g = &frame;
 volatile bool dispSaveReq = false;     // the on-screen menu changed a setting: loop() writes it to flash
-void drawBigNumber(const char *txt, int right, int y, int maxW, uint32_t col) {
+
+// Smooth digits. The built-in seven-segment font scaled up 1.5x looked blocky, so the numbers now use
+// anti-aliased 0-9 . - glyphs from Oswald Bold (SIL Open Font License, see fonts/OFL.txt) in three sizes:
+// 120, 70 and 57 px digits. tools/make_vlw.py makes the fonts/*.vlw files from the TTF; platformio.ini's
+// board_build.embed_files links them into the firmware, and they are read straight from flash.
+extern const uint8_t vlw_big_start[] asm("_binary_fonts_d_big_vlw_start"), vlw_big_end[] asm("_binary_fonts_d_big_vlw_end");
+extern const uint8_t vlw_mid_start[] asm("_binary_fonts_d_mid_vlw_start"), vlw_mid_end[] asm("_binary_fonts_d_mid_vlw_end");
+extern const uint8_t vlw_small_start[] asm("_binary_fonts_d_small_vlw_start"), vlw_small_end[] asm("_binary_fonts_d_small_vlw_end");
+lgfx::VLWfont digitFont[3];
+lgfx::PointerWrapper digitData[3];
+bool digitFontsOk = false;
+void loadDigitFonts() {
+  const uint8_t *s[3] = {vlw_big_start, vlw_mid_start, vlw_small_start}, *e[3] = {vlw_big_end, vlw_mid_end, vlw_small_end};
+  digitFontsOk = true;
+  for (int i = 0; i < 3; i++) { digitData[i].set(s[i], e[i] - s[i]); if (!digitFont[i].loadFont(&digitData[i])) digitFontsOk = false; }
+  Serial.printf("display: digit fonts %s\n", digitFontsOk ? "loaded" : "failed, using the bitmap font");
+}
+// Draws a number as large as fits: the biggest smooth font no taller than maxH whose width fits maxW. The
+// background colour is needed for the anti-aliased edges. Falls back to the scaled bitmap font if the smooth
+// fonts did not load.
+void drawNumber(const char *txt, int x, int y, int maxW, int maxH, textdatum_t datum, uint32_t col, uint32_t bg) {
+  g->setTextDatum(datum);
+  if (digitFontsOk) {
+    int pick = 2;
+    for (int i = 0; i < 3; i++) { g->setFont(&digitFont[i]); if (g->fontHeight() <= maxH && g->textWidth(txt) <= maxW) { pick = i; break; } }
+    g->setFont(&digitFont[pick]); g->setTextColor(col, bg); g->drawString(txt, x, y); g->setTextColor(col);
+    return;
+  }
   g->setFont(&fonts::Font7); g->setTextSize(1);
-  float s = min(DISP_MAX_SCALE, (float)maxW / max(1, (int)g->textWidth(txt)));
-  g->setTextSize(s); g->setTextColor(col); g->setTextDatum(middle_right);
-  g->drawString(txt, right, y + DISP_ROW_H / 2);
-  g->setTextSize(1);
+  float sc = min((float)maxH / 48.0f, (float)maxW / max(1, (int)g->textWidth(txt)));
+  g->setTextSize(sc); g->setTextColor(col); g->drawString(txt, x, y); g->setTextSize(1);
+}
+void drawBigNumber(const char *txt, int right, int y, int maxW, uint32_t col) {
+  drawNumber(txt, right, y + DISP_ROW_H / 2, maxW, DISP_ROW_H - 8, middle_right, col, 0x111a2e);
 }
 // The sub label (DIA, LONG, FWD) is near white: it stays readable whatever the panel's colour order.
 void drawRowLabel(int y, const char *name, const char *sub, uint32_t col) {
@@ -545,9 +573,7 @@ void drawInfo(const DispSnap &s) {
 // ---------------- single-value views ----------------
 // A number in the seven-segment font, as large as maxW and maxScale allow, centred on (cx, cy).
 void bigCentered(const char *txt, int cx, int cy, int maxW, float maxScale, uint32_t col) {
-  g->setFont(&fonts::Font7); g->setTextSize(1);
-  float sc = min(maxScale, (float)maxW / max(1, (int)g->textWidth(txt)));
-  g->setTextSize(sc); g->setTextColor(col); g->setTextDatum(middle_center); g->drawString(txt, cx, cy); g->setTextSize(1);
+  drawNumber(txt, cx, cy, maxW, (int)(48 * maxScale), middle_center, col, 0x0a1020);
 }
 void menuMark(int x, int y) { for (int i = 0; i < 3; i++) g->fillRect(x, y + 4 * i, 14, 2, 0x8fa1c2); }
 const char *toolText(const DispSnap &s) { const char *t = strstr(s.tool, " + "); return t ? t + 3 : (s.tool[0] ? s.tool : "No tool"); }
@@ -602,9 +628,7 @@ void drawXZView(const DispSnap &s) {
     g->setTextDatum(top_left); g->setFont(&fonts::Font4); g->setTextColor(0x38bdf8); g->drawString(i ? "Z" : "X", 11, y + 12);
     g->setFont(&fonts::Font2); g->setTextColor(0xe6edf7); g->drawString(i ? "LONG" : (s.xDia ? "DIA" : "RAD"), 11, y + 44);
     char b[16]; snprintf(b, sizeof b, "%.4f", i ? s.z : s.x);
-    g->setFont(&fonts::Font7); g->setTextSize(1);
-    float sc = min(2.2f, 270.0f / max(1, (int)g->textWidth(b)));
-    g->setTextSize(sc); g->setTextColor(0x38bdf8); g->setTextDatum(middle_right); g->drawString(b, 314, y + rh / 2); g->setTextSize(1);
+    drawNumber(b, 314, y + rh / 2, 270, rh - 12, middle_right, 0x38bdf8, 0x111a2e);
   }
   menuMark(11, rh - 14);
 }
@@ -672,6 +696,7 @@ void drawSplash() {
 void displayTask(void *) {
   lcd.init(); bool flip = S.dispFlip; lcd.setRotation(flip ? 3 : 1);
   if (S.dispSwapRb) lcd.setColorSwap(true);
+  loadDigitFonts();
   drawSplash();
   vTaskDelay(pdMS_TO_TICKS(2000));
   // Frame buffer: 16-bit in PSRAM, else 8-bit in internal RAM, else none (draw straight to the panel).

@@ -408,15 +408,17 @@ void loadDigitFonts() {
   for (int i = 0; i < 3; i++) { digitData[i].set(s[i], e[i] - s[i]); if (!digitFont[i].loadFont(&digitData[i])) digitFontsOk = false; }
   Serial.printf("display: digit fonts %s\n", digitFontsOk ? "loaded" : "failed, using the bitmap font");
 }
-// Draws a number as large as fits: the biggest smooth font no taller than maxH whose width fits maxW. The
-// background colour is needed for the anti-aliased edges. Falls back to the scaled bitmap font if the smooth
+// Draws a number as large as fits: the biggest smooth font no taller than maxH whose width fits maxW. The text
+// colour is set without a background colour on purpose: the library then reads the pixels already in the frame
+// buffer and blends the anti-aliased edges onto them, so the digits sit on any background with no box round
+// them. (With a background colour it paints boxes instead.) Falls back to the scaled bitmap font if the smooth
 // fonts did not load.
-void drawNumber(const char *txt, int x, int y, int maxW, int maxH, textdatum_t datum, uint32_t col, uint32_t bg) {
-  g->setTextDatum(datum);
+void drawNumber(const char *txt, int x, int y, int maxW, int maxH, textdatum_t datum, uint32_t col) {
+  g->setTextDatum(datum); g->setTextColor(col);
   if (digitFontsOk) {
     int pick = 2;
     for (int i = 0; i < 3; i++) { g->setFont(&digitFont[i]); if (g->fontHeight() <= maxH && g->textWidth(txt) <= maxW) { pick = i; break; } }
-    g->setFont(&digitFont[pick]); g->setTextColor(col, bg); g->drawString(txt, x, y); g->setTextColor(col);
+    g->setFont(&digitFont[pick]); g->drawString(txt, x, y);
     return;
   }
   g->setFont(&fonts::Font7); g->setTextSize(1);
@@ -424,7 +426,7 @@ void drawNumber(const char *txt, int x, int y, int maxW, int maxH, textdatum_t d
   g->setTextSize(sc); g->setTextColor(col); g->drawString(txt, x, y); g->setTextSize(1);
 }
 void drawBigNumber(const char *txt, int right, int y, int maxW, uint32_t col) {
-  drawNumber(txt, right, y + DISP_ROW_H / 2, maxW, DISP_ROW_H - 8, middle_right, col, 0x111a2e);
+  drawNumber(txt, right, y + DISP_ROW_H / 2, maxW, DISP_ROW_H - 8, middle_right, col);
 }
 // The sub label (DIA, LONG, FWD) is near white: it stays readable whatever the panel's colour order.
 void drawRowLabel(int y, const char *name, const char *sub, uint32_t col) {
@@ -573,7 +575,7 @@ void drawInfo(const DispSnap &s) {
 // ---------------- single-value views ----------------
 // A number in the seven-segment font, as large as maxW and maxScale allow, centred on (cx, cy).
 void bigCentered(const char *txt, int cx, int cy, int maxW, float maxScale, uint32_t col) {
-  drawNumber(txt, cx, cy, maxW, (int)(48 * maxScale), middle_center, col, 0x0a1020);
+  drawNumber(txt, cx, cy, maxW, (int)(48 * maxScale), middle_center, col);
 }
 void menuMark(int x, int y) { for (int i = 0; i < 3; i++) g->fillRect(x, y + 4 * i, 14, 2, 0x8fa1c2); }
 const char *toolText(const DispSnap &s) { const char *t = strstr(s.tool, " + "); return t ? t + 3 : (s.tool[0] ? s.tool : "No tool"); }
@@ -628,7 +630,7 @@ void drawXZView(const DispSnap &s) {
     g->setTextDatum(top_left); g->setFont(&fonts::Font4); g->setTextColor(0x38bdf8); g->drawString(i ? "Z" : "X", 11, y + 12);
     g->setFont(&fonts::Font2); g->setTextColor(0xe6edf7); g->drawString(i ? "LONG" : (s.xDia ? "DIA" : "RAD"), 11, y + 44);
     char b[16]; snprintf(b, sizeof b, "%.4f", i ? s.z : s.x);
-    drawNumber(b, 314, y + rh / 2, 270, rh - 12, middle_right, 0x38bdf8, 0x111a2e);
+    drawNumber(b, 314, y + rh / 2, 270, rh - 12, middle_right, 0x38bdf8);
   }
   menuMark(11, rh - 14);
 }

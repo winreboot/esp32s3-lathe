@@ -13,6 +13,9 @@ Change either part, then bump its version and add an entry here.
 
 ## Firmware
 
+### 1.8.3
+- Display: the smooth digits no longer sit in dark boxes. They are now drawn without a background colour, which makes the library read the frame buffer behind each glyph and blend the edges onto it, so the digits are transparent over the row colour.
+
 ### 1.8.2
 - Display: the smooth digits now actually appear. The font files listed the glyphs as 0–9 then point and minus, but the library finds a glyph with a binary search over the table, which needs it sorted by character code; with minus (45) last, every digit was reported missing and drawn as a placeholder box. The fonts are regenerated in code-point order (`-` `.` `0`–`9`). The 24 KB display stack from 1.8.1 stays, because the library still copies each glyph bitmap onto the stack.
 

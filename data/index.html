@@ -350,7 +350,7 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
     <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Qty</th><th>Part</th><th>Used for</th><th>Notes</th></tr></thead><tbody>
       <tr><td>1</td><td>ESP32-S3 dev board, 44-pin</td><td>The controller</td><td>Needs at least 8 MB flash and octal PSRAM, such as N8R8 or N16R8</td></tr>
       <tr><td>1</td><td>USB charger, 5 V 1 A or more, and cable</td><td>Powers the ESP32 and the display</td><td>Use a good one, because a noisy charger causes false counts</td></tr>
-      <tr><td>1</td><td>2.8 in ILI9341 SPI TFT display, 320 × 240</td><td>DRO, RPM and status at the machine</td><td>The common red-board module. Touch versions are fine; touch is not used</td></tr>
+      <tr><td>1</td><td>2.8 in ILI9341 SPI TFT display, 320 × 240</td><td>DRO, RPM and status at the machine</td><td>The common red-board module, <b>touch version</b> (XPT2046 touch controller): a tap on the screen opens the Settings menu</td></tr>
       <tr><td>2</td><td>Omron E6B2-CWZ6C encoder, <b>600 P/R</b></td><td>X and Z position</td><td>Must be the CWZ6C (open collector). 6 mm shaft</td></tr>
       <tr><td>1</td><td>Omron E6B2-CWZ6C encoder, <b>100 P/R</b></td><td>Spindle speed and direction</td><td>Skip if already fitted. Turns 1:1 with the spindle</td></tr>
       <tr><td>1</td><td>12 V DC supply, 0.5 A or more</td><td>Powers the three encoders</td><td>Each encoder draws up to 100 mA. Any 5–24 V supply works</td></tr>
@@ -406,18 +406,23 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
     </tbody></table></div>
     <h3>Display connections (2.8 in ILI9341 module)</h3>
     <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Display pin</th><th>ESP32 pin</th><th>Notes</th></tr></thead><tbody>
-      <tr><td>VCC</td><td>5V</td><td>The module has its own 3.3 V regulator. Leave its J1 jumper open on 5 V</td></tr>
+      <tr><td>VCC</td><td>3V3 or 5V</td><td>Look at the <b>J1</b> jumper on the back of the module. Bridged (the DIANN board): VCC goes to <b>3V3</b>. Open: the module has its own regulator and VCC goes to <b>5V</b>. Get this wrong and the screen stays black or the picture is faint</td></tr>
       <tr><td>GND</td><td>G</td><td></td></tr>
       <tr><td>CS</td><td>GPIO 10</td><td></td></tr>
       <tr><td>RESET</td><td>GPIO 8</td><td></td></tr>
       <tr><td>DC (or RS)</td><td>GPIO 9</td><td></td></tr>
       <tr><td>SDI (MOSI)</td><td>GPIO 11</td><td></td></tr>
       <tr><td>SCK</td><td>GPIO 12</td><td></td></tr>
-      <tr><td>LED</td><td>3V3</td><td>Backlight, always on</td></tr>
-      <tr><td>SDO (MISO), T_CLK, T_CS, T_DIN, T_DO, T_IRQ</td><td>Not connected</td><td>Touch and read-back are not used</td></tr>
+      <tr><td>LED</td><td>3V3</td><td>Backlight, always on. Without it the screen looks dead, with only a faint ghost of the picture</td></tr>
+      <tr><td>T_CLK</td><td>GPIO 12</td><td>Touch clock, in parallel with SCK (two wires on one ESP32 pin, or a short jumper on the module)</td></tr>
+      <tr><td>T_DIN</td><td>GPIO 11</td><td>Touch data in, in parallel with SDI</td></tr>
+      <tr><td>T_DO</td><td>GPIO 13</td><td>Touch data out</td></tr>
+      <tr><td>T_CS</td><td>GPIO 14</td><td>Touch chip select</td></tr>
+      <tr><td>SDO (MISO), T_IRQ</td><td>Not connected</td><td>Display read-back and the touch interrupt are not used</td></tr>
     </tbody></table></div>
     <div class="hp-grid">
-      <div class="hp-box"><b>What the display shows</b><div id="hpScreen"></div><div class="sidenote">Three full-width rows sized to read from across the shop: X, Z, then spindle RPM. The digits are about 13 mm tall on a 2.8-inch screen, half as tall again as before. Beside the RPM are the target, a speed bar with the target marked, and the loaded insert; an active alarm replaces the insert. Wi-Fi and CNC status are on the web page and the LEDs. Set <b>Display upside down</b> in Settings if you mount it inverted.</div></div>
+      <div class="hp-box"><b>What the display shows</b><div id="hpScreen"></div><div class="sidenote">Three full-width rows sized to read from across the shop: X, Z, then spindle RPM. The digits are about 13 mm tall on a 2.8-inch screen, half as tall again as before. Beside the RPM are the target, a speed bar with the target marked, and the loaded insert; an active alarm replaces the insert. Wi-Fi and CNC status are on the web page and the LEDs.</div>
+      <div class="sidenote" style="margin-top:8px"><b>Tap the screen</b> (anywhere; the three short lines in the X row's corner are the reminder) to open the <b>Settings menu</b>: Zero X, Zero Z, X shows diameter or radius, screen normal or upside down, swap red and blue, calibrate touch, <b>Info</b> (firmware version, Wi-Fi address and signal, the .local address, spindle run hours and powered-on hours), Close, and Reboot, which asks you to confirm. It closes on its own after 30 seconds. The very first tap runs the touch calibration instead: press the three crosses as they appear, and the menu opens. At power-up the screen shows a drawn lathe with the firmware version for two seconds. If the colours look wrong (the workpiece in that picture should be brass yellow, and in the menu the squares marked R, G and B should be red, green and blue), turn on <b>Swap red / blue</b>. The spindle hours count every second the spindle turns, are saved every minute, and are the same figure as the Run hours card on this page. Everything set here is saved; the diameter and upside-down switches are also in the web page's Settings.</div></div>
     </div>
   </div>
 
@@ -656,7 +661,8 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
   <div class="hp-pane" data-hp="Troubleshooting">
     <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Problem</th><th>Likely cause</th><th>What to do</th></tr></thead><tbody>
       <tr><td>Page will not load</td><td>Wrong network, or the page was not uploaded</td><td>Read the address on the display. If it shows AP, join the ESP32-Lathe access point. Run Upload Filesystem Image if the page is missing</td></tr>
-      <tr><td>Display stays dark</td><td>No backlight power</td><td>Check LED goes to 3V3 and VCC to 5V. If VCC is on 3V3 instead, the module's J1 jumper must be bridged</td></tr>
+      <tr><td>Display stays dark, or shows only a faint ghost picture</td><td>No backlight power, or VCC on the wrong voltage for the J1 jumper</td><td>LED must go to 3V3. VCC goes to 3V3 if J1 on the back of the module is bridged, 5V if it is open. At power-up the screen shows a drawn lathe with the firmware version; if you see that, the panel and wiring are fine</td></tr>
+      <tr><td>Tapping the screen does nothing</td><td>Touch pins not wired, or not calibrated</td><td>T_CLK to 12, T_DIN to 11, T_DO to 13, T_CS to 14. The first tap after a fresh flash starts the calibration; press the three crosses firmly with a fingernail or the stylus</td></tr>
       <tr><td>Display lit but white or blank</td><td>Display signals wired wrong</td><td>Check CS to 10, RESET to 8, DC to 9, SDI (MOSI) to 11 and SCK to 12. SDO (MISO) stays unconnected</td></tr>
       <tr><td>Display picture upside down</td><td>Mounting</td><td>Set Display upside down in Settings</td></tr>
       <tr><td>An axis never changes</td><td>No encoder power, a missing pull-up, or a wrong pin</td><td>Measure 12 V between J1 or J2 +12V and 0V. Black and white should each read either about 0 V or about 3.3 V at the ESP32 pin, and change as you turn the encoder by hand</td></tr>
@@ -688,7 +694,7 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
 <div class="toast" id="toast"></div>
 <script>
 // Bump WEB_VERSION with every page change and record it in CHANGELOG.md. FW_MIN is the oldest firmware this page works fully with.
-const WEB_VERSION='1.18.0',FW_MIN='1.4.0';
+const WEB_VERSION='1.20.0',FW_MIN='1.4.0';
 // Interface board revision. hardware/make_pcb.py writes it here; every board file name carries it.
 const BOARD_REV='F';
 document.querySelectorAll('a.hwf').forEach(a=>{const n='board_rev'+BOARD_REV+'_'+a.dataset.f;a.href='hw/'+n;a.download=n;a.textContent=n});document.querySelectorAll('.hwrev').forEach(e=>e.textContent=BOARD_REV);
@@ -1229,8 +1235,9 @@ function hpG540(){const t=HP_T,c=id=>HP_WIRES.find(x=>x.id===id).c,names=['IN 1'
 // A preview of the machine display, laid out as displayTask() in main.cpp draws it.
 function hpScreen(){const t=HP_T,big='font-family:Consolas,\'DejaVu Sans Mono\',monospace;font-weight:700;letter-spacing:-2px';let s='<svg viewBox="0 0 320 240" role="img" aria-label="Preview of the machine display: X and Z positions in large digits, then spindle RPM with the target, a speed bar and the loaded insert" style="max-width:480px;border:6px solid #020617;border-radius:6px">';
  s+='<rect width="320" height="240" fill="#0a1020"/>';
- const row=(y,name,sub,col)=>'<rect x="2" y="'+(y+2)+'" width="316" height="76" rx="6" fill="#111a2e"/><rect x="2" y="'+(y+2)+'" width="4" height="76" fill="'+col+'"/>'+t(11,y+32,name,'style="font-size:22px;fill:'+col+';font-weight:700"')+t(11,y+66,sub,'style="font-size:11px;fill:#8fa1c2"');
+ const row=(y,name,sub,col)=>'<rect x="2" y="'+(y+2)+'" width="316" height="76" rx="6" fill="#111a2e"/><rect x="2" y="'+(y+2)+'" width="4" height="76" fill="'+col+'"/>'+t(11,y+32,name,'style="font-size:22px;fill:'+col+';font-weight:700"')+t(11,y+66,sub,'style="font-size:11px;fill:#e6edf7"');
  [['X','DIA','0.4820',0],['Z','LONG','-1.2530',80]].forEach(a=>{s+=row(a[3],a[0],a[1],'#38bdf8')+t(314,a[3]+63,a[2],'text-anchor="end" textLength="'+(a[2].length>6?272:250)+'" lengthAdjust="spacingAndGlyphs" style="font-size:66px;fill:#38bdf8;'+big+'"')});
+ s+='<rect x="11" y="69" width="14" height="2" fill="#8fa1c2"/><rect x="11" y="73" width="14" height="2" fill="#8fa1c2"/><rect x="11" y="77" width="14" height="2" fill="#8fa1c2"/>';
  s+=row(160,'S','FWD','#22c55e')+t(206,223,'1240','text-anchor="end" textLength="158" lengthAdjust="spacingAndGlyphs" style="font-size:62px;fill:#22c55e;'+big+'"');
  s+=t(216,184,'SET 1250','style="font-size:12px"')+'<rect x="216" y="192" width="96" height="10" rx="3" fill="#1e2a44"/><rect x="216" y="192" width="59" height="10" rx="3" fill="#22c55e"/><rect x="275" y="188" width="3" height="18" fill="#e6edf7"/>'+t(216,224,'11 ER 20 UN','style="font-size:12px;fill:#fbbf24"');
  return s+'</svg>'}
@@ -1241,7 +1248,7 @@ const HP_STEPS=[
   ['Connect to the page and enter your Wi-Fi in Settings.','The Setup and checks tab has the details.'],
   ['Unplug the ESP32. Do this every time before changing wiring.','']]],
  ['Display',[
-  ['Wire the display straight to the ESP32: VCC to 5V, GND to G, CS to GPIO 10, RESET to 8, DC to 9, SDI (MOSI) to 11, SCK to 12, LED to 3V3.','Leave SDO (MISO) and all T_ touch pins unconnected. Keep these wires under about 20 cm.'],
+  ['Wire the display straight to the ESP32: VCC to 3V3 (J1 jumper bridged) or 5V (J1 open), GND to G, CS to GPIO 10, RESET to 8, DC to 9, SDI (MOSI) to 11, SCK to 12, LED to 3V3. Touch: T_CLK to 12, T_DIN to 11, T_DO to 13, T_CS to 14.','Leave SDO (MISO) and T_IRQ unconnected. Keep these wires under about 20 cm. At power-up you should see the lathe picture with the firmware version, then the DRO; the first tap on the screen starts the touch calibration.'],
   ['Power up: the display should show the X, Z and spindle rows. Unplug again.','If it is blank, see Troubleshooting.']]],
  ['Build the interface board (nothing connected to the lathe)',[
   ['Mill side 1 from the _bottom.dxf file and drill every hole, then flip the board on the alignment pins, mill side 2 from the _top.dxf file and cut it out, including the slot under U1.','The Interface board tab has the milling steps and settings.'],

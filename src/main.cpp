@@ -36,8 +36,9 @@ const int PIN_XA     = 7,  PIN_XB = 15, PIN_ZA = 16, PIN_ZB = 17;   // X and Z a
 const int PIN_CP     = 18;             // charge pump tap
 const int PIN_POT    = 1;              // ADC1
 const int PIN_PWM    = 2;              // -> PC817
-// 2.8" ILI9341 display on the S3's native SPI2 pins (GPIO 10-12), so it can run at 40 MHz. MISO is not needed.
+// 2.8" ILI9341 display on the S3's native SPI2 pins (GPIO 10-12). MISO is not needed.
 const int PIN_TFT_SCK = 12, PIN_TFT_MOSI = 11, PIN_TFT_CS = 10, PIN_TFT_DC = 9, PIN_TFT_RST = 8;
+const int PIN_TOUCH_MISO = 13, PIN_TOUCH_CS = 14;   // the XPT2046 touch controller shares SCK and MOSI with the panel
 
 // ---------------- settings (persisted) ----------------
 struct Settings {
@@ -57,6 +58,8 @@ struct Settings {
   int   ledRgb = 48, ledBlue = 44;     // status LED GPIOs, -1 = off (RGB is 38 on DevKitC-1 v1.1; blue is the RX LED on clone boards)
   bool  blueLow = true;                // blue LED lights when its pin is LOW
   bool  dispFlip = false;              // turn the display picture upside down, for mounting
+  bool  dispSwapRb = false;            // swap red and blue: some panels wire the colours the other way round
+  int16_t tcal[6] = {0, 0, 0, 0, 0, 0}; // touch calibration: raw readings at three screen points; all zero = not calibrated
 } S;
 Preferences prefs;
 
@@ -79,6 +82,8 @@ void loadSettings() {
   S.ledRgb = prefs.getInt("lrgb", S.ledRgb);  S.ledBlue = prefs.getInt("lblue", S.ledBlue);
   S.blueLow = prefs.getBool("blow", S.blueLow);
   S.dispFlip = prefs.getBool("dflip", S.dispFlip);
+  S.dispSwapRb = prefs.getBool("dswap", S.dispSwapRb);
+  prefs.getBytes("tcal", S.tcal, sizeof S.tcal);
   prefs.end();
 }
 void saveSettings() {
@@ -93,6 +98,7 @@ void saveSettings() {
   prefs.putFloat("xmin", S.xMin); prefs.putFloat("xmax", S.xMax); prefs.putFloat("zmin", S.zMin); prefs.putFloat("zmax", S.zMax);
   prefs.putBool("knob", S.knobEnabled); prefs.putString("mani", S.manifest);
   prefs.putInt("lrgb", S.ledRgb); prefs.putInt("lblue", S.ledBlue); prefs.putBool("blow", S.blueLow); prefs.putBool("dflip", S.dispFlip);
+  prefs.putBool("dswap", S.dispSwapRb); prefs.putBytes("tcal", S.tcal, sizeof S.tcal);
   prefs.end();
 }
 
@@ -280,7 +286,7 @@ volatile bool ledActive = false;
 bool ledPinOk(int p, bool rgb) {
   if (p == -1) return true;
   if (rgb) return p == 48 || p == 38;
-  for (int a : {14, 21, 38, 39, 40, 41, 42, 43, 44, 47, 48}) if (p == a) return true;   // 8-13 are the display
+  for (int a : {21, 38, 39, 40, 41, 42, 43, 44, 47, 48}) if (p == a) return true;   // 8-14 are the display and its touch panel
   return false;
 }
 void ledTask(void *) {
@@ -322,19 +328,31 @@ void ledTask(void *) {
 const int PWM_CH = 0, PWM_BITS = 12, PWM_MAX = 4095;
 // ---------------- machine display ----------------
 class LGFX : public lgfx::LGFX_Device {
-  lgfx::Panel_ILI9341 panel; lgfx::Bus_SPI bus;
+  lgfx::Panel_ILI9341 panel; lgfx::Bus_SPI bus; lgfx::Touch_XPT2046 touch;
 public:
   LGFX() {
     auto b = bus.config();
-    b.spi_host = SPI2_HOST; b.spi_mode = 0; b.freq_write = 40000000; b.freq_read = 16000000;
+    // 20 MHz: the panel's init commands go through reliably over jumper wires. 40 MHz needs short, tidy wiring,
+    // and when it fails the panel just stays asleep with a black screen. A frame takes 60 ms at 20 MHz.
+    b.spi_host = SPI2_HOST; b.spi_mode = 0; b.freq_write = 20000000; b.freq_read = 16000000;
     b.spi_3wire = false; b.use_lock = true; b.dma_channel = SPI_DMA_CH_AUTO;
-    b.pin_sclk = PIN_TFT_SCK; b.pin_mosi = PIN_TFT_MOSI; b.pin_miso = -1; b.pin_dc = PIN_TFT_DC;
+    b.pin_sclk = PIN_TFT_SCK; b.pin_mosi = PIN_TFT_MOSI; b.pin_miso = PIN_TOUCH_MISO; b.pin_dc = PIN_TFT_DC;
     bus.config(b); panel.setBus(&bus);
     auto p = panel.config();
     p.pin_cs = PIN_TFT_CS; p.pin_rst = PIN_TFT_RST; p.pin_busy = -1;
-    p.panel_width = 240; p.panel_height = 320; p.readable = false; p.bus_shared = false;
+    p.panel_width = 240; p.panel_height = 320; p.readable = false; p.bus_shared = true;
     panel.config(p); setPanel(&panel);
+    // Touch controller on the same bus, read raw at 1 MHz. The firmware does its own calibration (calibrateTouch),
+    // so the library's min/max are left at the full 12-bit range.
+    auto t = touch.config();
+    t.spi_host = SPI2_HOST; t.freq = 1000000; t.pin_sclk = PIN_TFT_SCK; t.pin_mosi = PIN_TFT_MOSI; t.pin_miso = PIN_TOUCH_MISO;
+    t.pin_cs = PIN_TOUCH_CS; t.pin_int = -1; t.bus_shared = true; t.offset_rotation = 0;
+    t.x_min = 0; t.x_max = 4095; t.y_min = 0; t.y_max = 4095;
+    touch.config(t); panel.setTouch(&touch);
   }
+  // Some panels have red and blue the other way round. The colour-order bit lives in the rotation command,
+  // so rewriting the rotation applies it.
+  void setColorSwap(bool swap) { auto p = panel.config(); p.rgb_order = swap; panel.config(p); setRotation(getRotation()); }
 };
 LGFX lcd;
 LGFX_Sprite frame(&lcd);
@@ -344,6 +362,7 @@ LGFX_Sprite frame(&lcd);
 struct DispSnap {
   float x, z, rpm; int target, maxRpm; bool fwd, enc, cnc, rec, play, up, ap, xDia;
   char ip[16], tool[48], alarm[64]; int alarms;
+  char host[33]; uint32_t spinS, powS; int rssi;      // for the Info screen
 };
 DispSnap dispShared = {};
 SemaphoreHandle_t dispLock;
@@ -354,64 +373,265 @@ void dispSnapshot() {
   s.cnc = cncOnline; s.rec = recording; s.play = playing; s.up = WiFi.status() == WL_CONNECTED; s.ap = WiFi.getMode() & WIFI_AP; s.xDia = S.xDia;
   strlcpy(s.ip, (s.up ? WiFi.localIP() : WiFi.softAPIP()).toString().c_str(), sizeof s.ip);
   s.alarms = alarms.size(); if (s.alarms) strlcpy(s.alarm, alarms[0].msg.c_str(), sizeof s.alarm);
+  strlcpy(s.host, S.host, sizeof s.host); s.spinS = spindleSeconds; s.powS = powerSeconds; s.rssi = s.up ? WiFi.RSSI() : 0;
   xSemaphoreTake(dispLock, portMAX_DELAY);
   strlcpy(s.tool, toolName.c_str(), sizeof s.tool);
   dispShared = s;
   xSemaphoreGive(dispLock);
 }
 
-const uint32_t DISP_FRAME_MS = 200;
+const uint32_t DISP_FRAME_MS = 200, TOUCH_POLL_MS = 40, MENU_TIMEOUT_MS = 30000;
 // Three rows of 80 px fill the screen. Numbers use the 48 px seven-segment font, scaled up to 1.5x (72 px)
 // and only shrunk when a long value, such as -12.3456, would not fit the width.
 const int DISP_ROW_H = 80, DISP_LABEL_W = 34;
 const float DISP_MAX_SCALE = 1.5f;
+// Where a frame is drawn: the off-screen frame buffer when there is memory for it, otherwise the panel itself
+// (which flickers a little, but still shows the numbers).
+lgfx::LovyanGFX *g = &frame;
+volatile bool dispSaveReq = false;     // the on-screen menu changed a setting: loop() writes it to flash
 void drawBigNumber(const char *txt, int right, int y, int maxW, uint32_t col) {
-  frame.setFont(&fonts::Font7); frame.setTextSize(1);
-  float s = min(DISP_MAX_SCALE, (float)maxW / max(1, (int)frame.textWidth(txt)));
-  frame.setTextSize(s); frame.setTextColor(col); frame.setTextDatum(middle_right);
-  frame.drawString(txt, right, y + DISP_ROW_H / 2);
-  frame.setTextSize(1);
+  g->setFont(&fonts::Font7); g->setTextSize(1);
+  float s = min(DISP_MAX_SCALE, (float)maxW / max(1, (int)g->textWidth(txt)));
+  g->setTextSize(s); g->setTextColor(col); g->setTextDatum(middle_right);
+  g->drawString(txt, right, y + DISP_ROW_H / 2);
+  g->setTextSize(1);
 }
+// The sub label (DIA, LONG, FWD) is near white: it stays readable whatever the panel's colour order.
 void drawRowLabel(int y, const char *name, const char *sub, uint32_t col) {
-  frame.fillRoundRect(2, y + 2, 316, DISP_ROW_H - 4, 6, 0x111a2e); frame.fillRect(2, y + 2, 4, DISP_ROW_H - 4, col);
-  frame.setTextDatum(top_left); frame.setFont(&fonts::Font4); frame.setTextColor(col); frame.drawString(name, 11, y + 12);
-  frame.setFont(&fonts::Font2); frame.setTextColor(0x8fa1c2); frame.drawString(sub, 11, y + 52);
+  g->fillRoundRect(2, y + 2, 316, DISP_ROW_H - 4, 6, 0x111a2e); g->fillRect(2, y + 2, 4, DISP_ROW_H - 4, col);
+  g->setTextDatum(top_left); g->setFont(&fonts::Font4); g->setTextColor(col); g->drawString(name, 11, y + 12);
+  g->setFont(&fonts::Font2); g->setTextColor(0xe6edf7); g->drawString(sub, 11, y + 52);
 }
 void drawAxis(int y, const char *name, const char *sub, float v) {
   drawRowLabel(y, name, sub, 0x38bdf8);
   char b[16]; snprintf(b, sizeof b, "%.4f", v);
   drawBigNumber(b, 314, y, 314 - DISP_LABEL_W - 4, 0x38bdf8);
 }
+
+// ---------------- touch ----------------
+// The touch panel is read raw (12-bit) and mapped to the screen with the firmware's own three-point calibration:
+// raw readings taken while the user pressed crosses at the top-left, top-right and bottom-left of the screen in
+// rotation 1. Those three points fix which raw axis is which, their direction and their scale. Flipped mounting
+// is handled afterwards by turning the result 180 degrees.
+const int CAL_PT[3][2] = {{24, 24}, {296, 24}, {24, 216}};
+bool touchCalibrated() { return S.tcal[0] || S.tcal[1] || S.tcal[2] || S.tcal[3]; }
+bool rawToScreen(int32_t rx, int32_t ry, bool flip, int &x, int &y) {
+  const int16_t *c = S.tcal;
+  bool swap = abs(c[2] - c[0]) < abs(c[3] - c[1]);    // top-left to top-right moved mostly along raw y: axes are swapped
+  int u = swap ? ry : rx, v = swap ? rx : ry;
+  int u0 = swap ? c[1] : c[0], v0 = swap ? c[0] : c[1];
+  int u1 = swap ? c[3] : c[2], v1 = swap ? c[4] : c[5];
+  if (u1 == u0 || v1 == v0) return false;
+  x = CAL_PT[0][0] + (u - u0) * (CAL_PT[1][0] - CAL_PT[0][0]) / (u1 - u0);
+  y = CAL_PT[0][1] + (v - v0) * (CAL_PT[2][1] - CAL_PT[0][1]) / (v1 - v0);
+  if (flip) { x = 319 - x; y = 239 - y; }
+  x = constrain(x, 0, 319); y = constrain(y, 0, 239);
+  return true;
+}
+void waitTouchRelease() {
+  int32_t rx, ry;
+  while (lcd.getTouchRaw(&rx, &ry)) vTaskDelay(pdMS_TO_TICKS(20));
+}
+// Drawn straight to the panel, in rotation 1, whatever the mounting.
+void calibrateTouch(bool flip) {
+  lcd.setRotation(1);
+  int16_t c[6];
+  for (int i = 0; i < 3; i++) {
+    lcd.fillScreen(0x0a1020);
+    lcd.setTextDatum(middle_center); lcd.setTextColor(0xe6edf7); lcd.setFont(&fonts::Font4);
+    lcd.drawString("Touch calibration", 160, 108);
+    char m[32]; snprintf(m, sizeof m, "Press the cross, %d of 3", i + 1);
+    lcd.setFont(&fonts::Font2); lcd.drawString(m, 160, 138);
+    int cx = CAL_PT[i][0], cy = CAL_PT[i][1];
+    lcd.drawFastHLine(cx - 12, cy, 25, 0xfbbf24); lcd.drawFastVLine(cx, cy - 12, 25, 0xfbbf24); lcd.drawCircle(cx, cy, 8, 0xfbbf24);
+    waitTouchRelease();
+    int32_t sx = 0, sy = 0, n = 0;
+    while (n < 8) {                                     // average 8 readings of one steady press
+      int32_t rx, ry;
+      if (lcd.getTouchRaw(&rx, &ry)) { sx += rx; sy += ry; n++; }
+      else if (n) { sx = sy = n = 0; }                  // let go too soon: start that point again
+      vTaskDelay(pdMS_TO_TICKS(15));
+    }
+    c[2 * i] = sx / n; c[2 * i + 1] = sy / n;
+    lcd.fillCircle(cx, cy, 8, 0x22c55e);
+    waitTouchRelease();
+    vTaskDelay(pdMS_TO_TICKS(200));
+  }
+  // The three points must be well apart in raw units, or the touch panel is not answering: keep the old values then.
+  bool ok = abs(c[2] - c[0]) + abs(c[3] - c[1]) > 500 && abs(c[4] - c[0]) + abs(c[5] - c[1]) > 500;
+  if (ok) { memcpy(S.tcal, c, sizeof c); dispSaveReq = true; }
+  lcd.fillScreen(0x0a1020); lcd.setFont(&fonts::Font4); lcd.setTextDatum(middle_center); lcd.setTextColor(ok ? 0x22c55e : 0xf59e0b);
+  lcd.drawString(ok ? "Calibrated" : "No touch detected", 160, 120);
+  vTaskDelay(pdMS_TO_TICKS(900));
+  lcd.setRotation(flip ? 3 : 1);
+}
+
+// ---------------- on-screen menu ----------------
+// A tap anywhere on the DRO opens it. Buttons are finger sized; nothing here needs the web page.
+struct Btn { int x, y, w, h; };
+const Btn MB[9] = {{6, 6, 152, 52}, {162, 6, 152, 52}, {6, 64, 152, 52}, {162, 64, 152, 52},
+                   {6, 122, 152, 52}, {162, 122, 152, 52}, {6, 180, 100, 52}, {110, 180, 100, 52}, {214, 180, 100, 52}};
+enum { B_ZERO_X, B_ZERO_Z, B_XDIA, B_FLIP, B_SWAP, B_CAL, B_INFO, B_CLOSE, B_REBOOT };
+const Btn YES_BTN = {6, 150, 152, 48}, NO_BTN = {162, 150, 152, 48}, BACK_BTN = {6, 186, 308, 48};
+bool hit(const Btn &b, int x, int y) { return x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h; }
+void drawBtn(const Btn &b, const char *l1, const char *l2, uint32_t fill = 0x1e2a44, uint32_t txt = 0xe6edf7) {
+  g->fillRoundRect(b.x, b.y, b.w, b.h, 8, fill);
+  g->setTextDatum(middle_center); g->setTextColor(txt);
+  if (l2) {
+    g->setFont(&fonts::Font2); g->drawString(l1, b.x + b.w / 2, b.y + b.h / 2 - 9);
+    g->setTextColor(0xfbbf24); g->drawString(l2, b.x + b.w / 2, b.y + b.h / 2 + 9);
+  } else { g->setFont(&fonts::Font4); g->drawString(l1, b.x + b.w / 2, b.y + b.h / 2); }
+}
+void drawMenu(const DispSnap &s) {
+  g->fillScreen(0x0a1020);
+  drawBtn(MB[B_ZERO_X], "Zero X", nullptr, 0x0c4a6e);
+  drawBtn(MB[B_ZERO_Z], "Zero Z", nullptr, 0x0c4a6e);
+  drawBtn(MB[B_XDIA], "X shows", S.xDia ? "diameter" : "radius");
+  drawBtn(MB[B_FLIP], "Screen", S.dispFlip ? "upside down" : "normal");
+  drawBtn(MB[B_SWAP], "Swap red / blue", S.dispSwapRb ? "on" : "off");
+  // Colour check beside the swap button's text: if the letters match the colours, the order is right
+  const uint32_t rgb[3] = {0xff0000, 0x00ff00, 0x0000ff}; const char *ltr[3] = {"R", "G", "B"};
+  g->setFont(&fonts::Font0); g->setTextDatum(middle_center);
+  for (int i = 0; i < 3; i++) {
+    int bx = MB[B_SWAP].x + 10 + 18 * i, by = MB[B_SWAP].y + 8;
+    g->fillRoundRect(bx, by, 14, 14, 3, rgb[i]); g->setTextColor(0xffffff); g->drawString(ltr[i], bx + 7, by + 7);
+  }
+  drawBtn(MB[B_CAL], "Calibrate touch", nullptr);
+  drawBtn(MB[B_INFO], "Info", nullptr);
+  drawBtn(MB[B_CLOSE], "Close", nullptr, 0x1e2a44);
+  drawBtn(MB[B_REBOOT], "Reboot", nullptr, 0x7f1d1d);
+}
+void drawConfirmReboot(const DispSnap &s) {
+  g->fillScreen(0x0a1020);
+  g->setTextDatum(middle_center); g->setFont(&fonts::Font4); g->setTextColor(0xe6edf7);
+  g->drawString("Restart the controller now?", 160, 80);
+  g->setFont(&fonts::Font2); g->setTextColor(0x8fa1c2); g->drawString("The web page reconnects by itself.", 160, 110);
+  drawBtn(YES_BTN, "Yes, reboot", nullptr, 0x7f1d1d);
+  drawBtn(NO_BTN, "No", nullptr);
+}
+// Firmware, network and the run-hour counters (spindle time counts whenever it turns above 10 rpm, and is
+// saved every minute, so it is the spindle's total mileage).
+void drawInfo(const DispSnap &s) {
+  g->fillScreen(0x0a1020);
+  g->setTextDatum(top_left); g->setFont(&fonts::Font4); g->setTextColor(0xe6edf7); g->drawString("ESP32 Lathe", 8, 8);
+  g->setFont(&fonts::Font2);
+  int y = 46; char v[64];
+  auto line = [&](const char *k, const char *val) {
+    g->setTextColor(0x8fa1c2); g->drawString(k, 8, y); g->setTextColor(0xe6edf7); g->drawString(val, 118, y); y += 24;
+  };
+  line("Firmware", "v" FW_VERSION);
+  if (s.up) snprintf(v, sizeof v, "%s   %d dBm", s.ip, s.rssi); else if (s.ap) snprintf(v, sizeof v, "own network, %s", s.ip); else snprintf(v, sizeof v, "not connected");
+  line("Wi-Fi", v);
+  snprintf(v, sizeof v, "http://%s.local", s.host); line("Address", v);
+  snprintf(v, sizeof v, "%lu h %02lu min", (unsigned long)(s.spinS / 3600), (unsigned long)(s.spinS % 3600 / 60)); line("Spindle run", v);
+  snprintf(v, sizeof v, "%lu h %02lu min", (unsigned long)(s.powS / 3600), (unsigned long)(s.powS % 3600 / 60)); line("Powered on", v);
+  drawBtn(BACK_BTN, "Back", nullptr);
+}
+void drawMain(const DispSnap &s) {
+  g->fillScreen(0x0a1020);
+  // DRO rows
+  drawAxis(0, "X", s.xDia ? "DIA" : "RAD", s.x);
+  drawAxis(DISP_ROW_H, "Z", "LONG", s.z);
+  for (int i = 0; i < 3; i++) g->fillRect(11, 69 + 4 * i, 14, 2, 0x8fa1c2);    // menu mark: a tap opens Settings
+  // Spindle row: big RPM on the left, target, speed bar and tool (or alarm) in a narrow column on the right
+  const int y = 2 * DISP_ROW_H, colX = 216, colW = 96;
+  drawRowLabel(y, "S", s.fwd ? "FWD" : "REV", 0x22c55e);
+  char r[8]; snprintf(r, sizeof r, "%d", (int)(s.rpm + 0.5f));
+  drawBigNumber(r, colX - 6, y, colX - 6 - DISP_LABEL_W - 4, 0x22c55e);
+  g->setFont(&fonts::Font2); g->setTextDatum(top_left); g->setTextColor(0xe6edf7);
+  char tg[16]; snprintf(tg, sizeof tg, "SET %d", s.target); g->drawString(tg, colX, y + 10);
+  int mx = s.maxRpm > 0 ? s.maxRpm : 2000;
+  g->fillRoundRect(colX, y + 32, colW, 10, 3, 0x1e2a44);
+  g->fillRoundRect(colX, y + 32, constrain((int)(colW * s.rpm / mx), 0, colW), 10, 3, s.enc || s.rpm < 1 ? 0x22c55e : 0xf59e0b);
+  if (s.target > 0) { int tx = colX + constrain(colW * s.target / mx, 0, colW); g->fillRect(tx - 1, y + 28, 3, 18, 0xe6edf7); }
+  // An alarm takes priority over the tool name; both are clipped to the column.
+  g->setClipRect(colX, y + 50, colW, 24);
+  if (s.alarms) { g->fillRoundRect(colX, y + 50, colW, 22, 4, 0xb45309); g->setTextColor(0xffffff); g->drawString(s.alarm, colX + 3, y + 53); }
+  else { g->setTextColor(0xfbbf24); const char *t = strstr(s.tool, " + "); g->drawString(t ? t + 3 : (s.tool[0] ? s.tool : "No tool"), colX, y + 53); }
+  g->clearClipRect();
+}
+// Boot picture, drawn straight to the panel: a lathe made of rectangles and circles, the name and the version.
+// If it shows, the wiring and the panel are fine whatever happens with the frame buffer afterwards. Greys stay
+// grey whichever way round the panel has red and blue; only the workpiece and the chips are coloured.
+void drawSplash() {
+  const uint32_t steel = 0x475569, dark = 0x334155, light = 0x94a3b8, brass = 0xfbbf24;
+  lcd.fillScreen(0x0a1020);
+  // bed, legs and base
+  lcd.fillRoundRect(28, 152, 264, 18, 3, steel);
+  lcd.fillRect(44, 170, 22, 34, dark); lcd.fillRect(254, 170, 22, 34, dark); lcd.fillRect(28, 204, 264, 4, dark);
+  // headstock, spindle nose, chuck with three jaws
+  lcd.fillRoundRect(40, 88, 72, 66, 6, dark); lcd.fillRect(40, 96, 72, 5, light);
+  lcd.fillCircle(120, 120, 24, light); lcd.fillCircle(120, 120, 17, dark);
+  lcd.fillRect(117, 98, 6, 11, light); lcd.fillRect(102, 128, 11, 6, light); lcd.fillRect(127, 128, 11, 6, light);
+  // workpiece from the chuck to the tailstock centre
+  lcd.fillRoundRect(120, 113, 108, 14, 4, brass);
+  lcd.fillTriangle(240, 112, 240, 128, 228, 120, light);
+  // tailstock and its hand wheel
+  lcd.fillRoundRect(240, 104, 40, 50, 4, dark); lcd.fillCircle(290, 124, 9, light); lcd.fillCircle(290, 124, 4, dark);
+  // saddle, cross slide, tool post and the tool tip against the work
+  lcd.fillRect(148, 142, 56, 10, light); lcd.fillRect(158, 136, 36, 6, steel); lcd.fillRect(170, 128, 16, 8, light);
+  lcd.fillRect(178, 125, 4, 4, 0xe6edf7);
+  // a few chips flying off
+  lcd.fillCircle(188, 108, 2, brass); lcd.fillCircle(196, 100, 2, brass); lcd.fillCircle(204, 106, 2, brass); lcd.fillCircle(192, 94, 1, brass);
+  // name and version
+  lcd.setTextDatum(middle_center); lcd.setTextColor(0xe6edf7); lcd.setFont(&fonts::Font4); lcd.drawString("ESP32 Lathe", 160, 40);
+  lcd.setFont(&fonts::Font2); lcd.setTextColor(0x8fa1c2); lcd.drawString("firmware v" FW_VERSION, 160, 66);
+}
 // Draws a whole frame off screen, then sends it in one go, so nothing flickers.
 void displayTask(void *) {
-  lcd.init(); bool flip = S.dispFlip; lcd.setRotation(flip ? 3 : 1); lcd.fillScreen(TFT_BLACK);
+  lcd.init(); bool flip = S.dispFlip; lcd.setRotation(flip ? 3 : 1);
+  if (S.dispSwapRb) lcd.setColorSwap(true);
+  drawSplash();
+  vTaskDelay(pdMS_TO_TICKS(2000));
+  // Frame buffer: 16-bit in PSRAM, else 8-bit in internal RAM, else none (draw straight to the panel).
   frame.setColorDepth(16); frame.setPsram(true);
-  if (!frame.createSprite(320, 240)) { frame.setPsram(false); frame.setColorDepth(8); frame.createSprite(320, 240); }
+  bool buffered = frame.createSprite(320, 240) != nullptr;
+  if (!buffered) { frame.setPsram(false); frame.setColorDepth(8); buffered = frame.createSprite(320, 240) != nullptr; }
+  g = buffered ? static_cast<lgfx::LovyanGFX *>(&frame) : static_cast<lgfx::LovyanGFX *>(&lcd);
+  Serial.printf("display: %s\n", buffered ? "frame buffer allocated" : "no memory for a frame buffer, drawing directly");
+  lcd.fillScreen(TFT_BLACK);
+  enum { M_MAIN, M_MENU, M_INFO, M_REBOOT } mode = M_MAIN;
+  bool down = false; int px = 0, py = 0;                 // press in progress, and where it started
+  uint32_t lastDraw = 0, lastTap = 0;
   for (;;) {
     if (flip != S.dispFlip) { flip = S.dispFlip; lcd.setRotation(flip ? 3 : 1); }
-    DispSnap s; xSemaphoreTake(dispLock, portMAX_DELAY); s = dispShared; xSemaphoreGive(dispLock);
-    frame.fillScreen(0x0a1020);
-    // DRO rows
-    drawAxis(0, "X", s.xDia ? "DIA" : "RAD", s.x);
-    drawAxis(DISP_ROW_H, "Z", "LONG", s.z);
-    // Spindle row: big RPM on the left, target, speed bar and tool (or alarm) in a narrow column on the right
-    const int y = 2 * DISP_ROW_H, colX = 216, colW = 96;
-    drawRowLabel(y, "S", s.fwd ? "FWD" : "REV", 0x22c55e);
-    char r[8]; snprintf(r, sizeof r, "%d", (int)(s.rpm + 0.5f));
-    drawBigNumber(r, colX - 6, y, colX - 6 - DISP_LABEL_W - 4, 0x22c55e);
-    frame.setFont(&fonts::Font2); frame.setTextDatum(top_left); frame.setTextColor(0xe6edf7);
-    char tg[16]; snprintf(tg, sizeof tg, "SET %d", s.target); frame.drawString(tg, colX, y + 10);
-    int mx = s.maxRpm > 0 ? s.maxRpm : 2000;
-    frame.fillRoundRect(colX, y + 32, colW, 10, 3, 0x1e2a44);
-    frame.fillRoundRect(colX, y + 32, constrain((int)(colW * s.rpm / mx), 0, colW), 10, 3, s.enc || s.rpm < 1 ? 0x22c55e : 0xf59e0b);
-    if (s.target > 0) { int tx = colX + constrain(colW * s.target / mx, 0, colW); frame.fillRect(tx - 1, y + 28, 3, 18, 0xe6edf7); }
-    // An alarm takes priority over the tool name; both are clipped to the column.
-    frame.setClipRect(colX, y + 50, colW, 24);
-    if (s.alarms) { frame.fillRoundRect(colX, y + 50, colW, 22, 4, 0xb45309); frame.setTextColor(0xffffff); frame.drawString(s.alarm, colX + 3, y + 53); }
-    else { frame.setTextColor(0xfbbf24); const char *t = strstr(s.tool, " + "); frame.drawString(t ? t + 3 : (s.tool[0] ? s.tool : "No tool"), colX, y + 53); }
-    frame.clearClipRect();
-    frame.pushSprite(0, 0);
-    vTaskDelay(pdMS_TO_TICKS(DISP_FRAME_MS));
+    uint32_t now = millis();
+    // Touch: act on the release, at the point first pressed, so a finger sliding off a button does nothing.
+    int32_t rx, ry; int x, y; bool tap = false;
+    bool touched = lcd.getTouchRaw(&rx, &ry) && (!touchCalibrated() || rawToScreen(rx, ry, flip, x, y));
+    if (touched && !down) { down = true; px = touchCalibrated() ? x : -1; py = touchCalibrated() ? y : -1; }
+    else if (!touched && down) { down = false; tap = true; }
+    if (tap) {
+      lastTap = now;
+      if (!touchCalibrated()) { calibrateTouch(flip); mode = M_MENU; }
+      else if (mode == M_MAIN) mode = M_MENU;
+      else if (mode == M_MENU) {
+        if (hit(MB[B_ZERO_X], px, py)) zeroReq[0] = true;
+        else if (hit(MB[B_ZERO_Z], px, py)) zeroReq[1] = true;
+        else if (hit(MB[B_XDIA], px, py)) { S.xDia = !S.xDia; dispSaveReq = true; }
+        else if (hit(MB[B_FLIP], px, py)) { S.dispFlip = !S.dispFlip; dispSaveReq = true; }
+        else if (hit(MB[B_SWAP], px, py)) { S.dispSwapRb = !S.dispSwapRb; lcd.setColorSwap(S.dispSwapRb); dispSaveReq = true; }
+        else if (hit(MB[B_CAL], px, py)) calibrateTouch(flip);
+        else if (hit(MB[B_INFO], px, py)) mode = M_INFO;
+        else if (hit(MB[B_CLOSE], px, py)) mode = M_MAIN;
+        else if (hit(MB[B_REBOOT], px, py)) mode = M_REBOOT;
+      } else if (mode == M_INFO) mode = M_MENU;                 // any tap goes back
+      else if (mode == M_REBOOT) {
+        if (hit(YES_BTN, px, py)) {
+          lcd.fillScreen(0x0a1020); lcd.setTextDatum(middle_center); lcd.setFont(&fonts::Font4); lcd.setTextColor(0xe6edf7);
+          lcd.drawString("Rebooting...", 160, 120); delay(300); ESP.restart();
+        }
+        if (hit(NO_BTN, px, py)) mode = M_MENU;
+      }
+    }
+    if (mode != M_MAIN && now - lastTap > MENU_TIMEOUT_MS) mode = M_MAIN;   // left open: back to the DRO
+    if (tap || now - lastDraw >= DISP_FRAME_MS) {
+      lastDraw = now;
+      DispSnap s; xSemaphoreTake(dispLock, portMAX_DELAY); s = dispShared; xSemaphoreGive(dispLock);
+      if (mode == M_MAIN) drawMain(s); else if (mode == M_MENU) drawMenu(s); else if (mode == M_INFO) drawInfo(s); else drawConfirmReboot(s);
+      if (buffered) frame.pushSprite(0, 0);
+    }
+    vTaskDelay(pdMS_TO_TICKS(TOUCH_POLL_MS));
   }
 }
 
@@ -649,4 +869,5 @@ void loop() {
     if (up && !wasUp) logEvent("wifi", "Wi-Fi reconnected (" + WiFi.localIP().toString() + ")"); wasUp = up;
   }
   if (now - lastTx >= 250) { lastTx = now; dispSnapshot(); broadcast(stateJson()); ws.cleanupClients(); }
+  if (dispSaveReq) { dispSaveReq = false; saveSettings(); }      // a change made on the screen's menu
 }

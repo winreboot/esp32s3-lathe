@@ -13,6 +13,24 @@ Change either part, then bump its version and add an entry here.
 
 ## Firmware
 
+### 1.6.0
+- Display: the boot screen is now a drawn lathe (bed, headstock, chuck, brass workpiece, tool post, tailstock) with the name and firmware version, shown for 2 s. It replaces the plain blue test screen.
+- Display: the Settings menu has no header any more; a new **Info** button shows the firmware version, Wi-Fi address and signal, the `.local` address, the spindle run hours and the powered-on hours. Any tap on the Info screen goes back.
+- Display: the bottom menu row is Info, Close, Reboot; the other buttons are a little taller.
+- The spindle run time itself was already counted (every second the spindle turns above 10 rpm) and saved every minute; this release only puts it on the screen.
+
+### 1.5.0
+- Display: the touch panel is now used. Wire T_CLK to GPIO 12 and T_DIN to GPIO 11 (in parallel with the display's SCK and SDI), T_DO to GPIO 13 and T_CS to GPIO 14; T_IRQ stays unconnected. GPIO 14 is no longer offered as a blue LED pin.
+- Display: a tap anywhere on the DRO opens a Settings menu: Zero X, Zero Z, X shows diameter/radius, screen normal/upside down, swap red/blue, calibrate touch, close, and Reboot (asks for confirmation). It closes by itself after 30 s. Changes are saved to flash.
+- Display: the first tap runs a three-point touch calibration (press three crosses); it can be repeated from the menu. The calibration is stored.
+- Display: a red/blue swap setting for panels whose colour order is reversed; the menu shows R, G and B squares to check. The DIA, LONG and FWD sub-labels are now near white, so they read well with either colour order (they blended into the background before).
+- Display: a small three-line mark in the X row's corner shows where the menu is.
+
+### 1.4.2
+- Display: the SPI clock drops from 40 to 20 MHz. At 40 MHz over jumper wires the panel can miss its start-up commands and stay asleep, which looks like a dead screen. A frame now takes about 60 ms, well inside the 200 ms refresh.
+- Display: a self-test at boot, drawn straight to the panel: a blue screen with the firmware version and "display OK" for 1.5 s. If that shows, the wiring and panel are good.
+- Display: if the frame buffer cannot be allocated (no PSRAM, or memory already used), the numbers are drawn directly to the panel instead of nothing. The serial log says which path is in use.
+
 ### 1.4.1
 - Display: removes the Wi-Fi, LED and CNC status bar. X, Z and spindle each get an 80-pixel row, and their numbers are scaled up to 1.5× (about 13 mm tall on a 2.8 in screen) so they can be read from a distance.
 - The spindle row shows RPM large on the left, with the target, speed bar and loaded insert (or an active alarm) in a column on the right.
@@ -55,6 +73,13 @@ Change either part, then bump its version and add an entry here.
 | A | 1.13.0 | 165 × 118 mm single-sided, first milled version |
 
 ## Web page
+
+### 1.20.0 (needs firmware 1.4.0)
+- Help, Display: describes the lathe boot picture, the Info button (firmware, Wi-Fi, address, spindle and power-on hours) and the header-less menu of firmware 1.6.0.
+
+### 1.19.0 (needs firmware 1.4.0)
+- Help, Display: the wiring table now includes the touch pins (T_CLK → 12, T_DIN → 11, T_DO → 13, T_CS → 14) and explains the module's J1 jumper: VCC goes to 3V3 when J1 is bridged (the DIANN board), to 5V when it is open. The display section describes the on-screen Settings menu and the first-tap calibration. Build steps and troubleshooting updated to match.
+- Help: the screen preview shows the white sub-labels and the menu mark.
 
 ### 1.18.0 (needs firmware 1.4.0)
 - Interface board **rev F**, after a desktop-CNC review of the rev E files. The old mill files put the copper outlines and their holes on one COPPER layer and near-duplicate outlines on CLEAR, so a CAM program had to be told which lines to offset which way. Now every layer is one operation:

@@ -33,7 +33,8 @@ The full build guide, with diagrams, is under **Help** on the dashboard. Taps fr
 | — | Encoder power | All three encoders from a 12 V supply (5–24 V). Blue and supply − to ESP32 GND and G540 T12. Never from G540 T11. Axis encoder orange (index) unused. |
 | GPIO 1 | Speed knob wiper | 10k pot between 3V3 and GND |
 | GPIO 2 | Spindle PWM | 330 Ω → PC817 pin 1; pin 2 → GND. Transistor side on the lathe controller's pot terminals (see `esp32/README.md` in the project: HIGH ← collector, WIPER ← emitter node, 4.7k + 10 µF to LOW) |
-| GPIO 8 / 9 / 10 / 11 / 12 | Display RESET / DC / CS / SDI (MOSI) / SCK | 2.8" ILI9341 SPI TFT. VCC to 5V, LED to 3V3, SDO and touch pins unconnected |
+| GPIO 8 / 9 / 10 / 11 / 12 | Display RESET / DC / CS / SDI (MOSI) / SCK | 2.8" ILI9341 SPI TFT with XPT2046 touch. VCC to 3V3 if the module's J1 jumper is bridged, 5V if open; LED to 3V3; SDO unconnected |
+| GPIO 12 / 11 / 13 / 14 | Touch T_CLK / T_DIN / T_DO / T_CS | T_CLK and T_DIN share the display's SCK and SDI pins. T_IRQ unconnected. A tap on the screen opens the Settings menu (zero X/Z, diameter, flip, colour swap, calibrate, reboot) |
 | 5V / GND | Power | USB charger. GND common with encoder 0 V and G540 T12. **Never** with the controller board. |
 
 Status LEDs are on the board and need no wiring. The RGB LED defaults to GPIO 48 and the blue LED to GPIO 44; change them under Settings if your board differs. Some clone boards need their "RGB" solder pads bridged before the RGB LED works.

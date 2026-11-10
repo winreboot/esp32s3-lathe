@@ -3,8 +3,10 @@
 Read `CLAUDE.md` for the working rules, `README.md` for what the system does, `CHANGELOG.md` for every version. This file is the context a new session would otherwise lack: what was decided recently, why, and what is next.
 
 ## Current versions
-- Firmware **1.4.1** (`platformio.ini`), web page **1.18.0** (`data/index.html`, `FW_MIN` 1.4.0), interface board **rev F** (`hardware/make_pcb.py`).
-- `data/hw/` holds the rev F files and the filesystem image builds cleanly with all 10 files. Whether the user has uploaded 1.18.0 to the ESP32 is not known.
+- Firmware **1.6.0** (`platformio.ini`), web page **1.20.0** (`data/index.html`, `FW_MIN` 1.4.0), interface board **rev F** (`hardware/make_pcb.py`).
+- Touch confirmed working on the user's panel (10 November 2026). 1.6.0 added a drawn-lathe boot screen, removed the menu header and added an Info screen (firmware, Wi-Fi, address, spindle run hours, powered-on hours). Spindle hours were already counted by the firmware; Info only displays them.
+- `data/hw/` holds the rev F files and the filesystem image builds cleanly with all 10 files.
+- Display (10 November 2026): the user's DIANN 2.8" ILI9341 module runs with VCC and LED both on 3V3 (its J1 jumper is bridged). 1.4.2 dropped the SPI clock to 20 MHz and added a boot splash; 1.5.0 added the XPT2046 touch panel on the shared bus (T_DO → 13, T_CS → 14) with a tap-anywhere Settings menu (zero X/Z, diameter/radius, flip, red/blue swap, touch calibration, confirmed reboot) and white sub-labels. The user wired the touch pins and reported that calibration and the menu work.
 
 ## The interface board, and how it got to rev F
 The user mills the board at home on a desktop CNC router from the DXFs the script writes, two-sided, with no plated holes (via pins are bare wire soldered both sides). The sequence of revisions matters because each one answers a problem seen on the real machine:

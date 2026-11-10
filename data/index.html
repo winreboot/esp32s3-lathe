@@ -327,21 +327,21 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
     <h3>What this does</h3>
     <p>Three Omron encoders watch the lathe. A 600 P/R encoder on each slide measures its real position for the DRO, and the 100 P/R spindle encoder measures speed and direction. The ESP32 shows all of it here and on a color display at the machine, records jobs and controls spindle speed. UCCNC still moves the axes.</p>
     <div class="hp-grid">
-      <div class="hp-box"><b>X and Z position</b><br>600 P/R encoders, through 2.2 kΩ pull-ups on the interface board. Counted in hardware at 2400 counts per revolution</div>
-      <div class="hp-box"><b>Spindle speed and direction</b><br>100 P/R encoder. It also feeds the G540, so UCCNC can cut threads, and the ESP32 reads it through inverters</div>
+      <div class="hp-box"><b>X and Z position</b><br>600 P/R encoders, through level shifter module LS2 (12 V on the cable, 3.3 V at the ESP32). Counted in hardware at 2400 counts per revolution</div>
+      <div class="hp-box"><b>Spindle speed and direction</b><br>100 P/R encoder. It also feeds the G540, so UCCNC can cut threads, and the ESP32 reads it through level shifter module LS1</div>
       <div class="hp-box"><b>Spindle control</b><br>Through a PC817 optocoupler that replaces the lathe's speed pot, with no electrical connection to the lathe controller</div>
       <div class="hp-box"><b>At the machine</b><br>2.8 in color display with the DRO, RPM, target, loaded tool, alarms and status, plus two status LEDs</div>
     </div>
     <h3>The five rules that protect your hardware</h3>
     <ol>
-      <li><b>3.3 V only on ESP32 pins.</b> Its pins are not 5 V tolerant. That is why the G540 taps go through inverters, and why the encoder pull-ups go to 3.3 V.</li>
+      <li><b>3.3 V only on ESP32 pins.</b> Its pins are not 5 V tolerant. That is why every encoder and G540 line goes through a level shifter whose LV side is fed from the 3V3 pin, and never straight to a GPIO.</li>
       <li><b>Use E6B2-CWZ6C encoders only</b> (NPN open collector). Voltage-output versions such as the E6B2-CWZ3E would put their supply voltage on the ESP32 pins.</li>
       <li><b>Never join ESP32 ground to the lathe controller.</b> The PC817 is the only link between them.</li>
       <li><b>Never power the encoders from G540 terminal 11.</b> That supply can reach 50 V and the encoders' limit is 24 V.</li>
-      <li><b>The lathe's pot voltage must be under 35 V.</b> That is the most the PC817's output can block. Measure it before connecting.</li>
+      <li><b>The lathe's pot voltage must be under 25 V.</b> That is the rating of the 10 µF capacitor across it (the PC817's output itself takes 35 V). Measure it before connecting.</li>
     </ol>
     <h3>How to use this guide</h3>
-    <p>Follow the tabs from left to right: gather the <b>Parts</b>, study the <b>Wiring diagram</b>, the <b>Interface board</b> and the <b>G540</b> connections, work through <b>Build steps</b> and tick them off, then finish with <b>Setup and checks</b>.</p>
+    <p>Follow the tabs from left to right: gather the <b>Parts</b>, study the <b>Wiring diagram</b>, the <b>Level shifters</b> and the <b>G540</b> connections, work through <b>Build steps</b> and tick them off, then finish with <b>Setup and checks</b>. The <b>Milled board</b> tab is an alternative to the shifter modules; skip it unless you want to mill a board.</p>
     <p class="sidenote">Pin positions follow the ESP32-S3-DevKitC-1 header. Clone boards usually match, but check the printed labels on your board and wire to the GPIO number, not the position.</p>
   </div>
 
@@ -356,21 +356,16 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
       <tr><td>1</td><td>12 V DC supply, 0.5 A or more</td><td>Powers the three encoders</td><td>Each encoder draws up to 100 mA. Any 5–24 V supply works</td></tr>
       <tr><td>2</td><td>Flexible shaft coupling, 6 mm to your shaft</td><td>Drives each axis encoder</td><td>Jaw or bellows type</td></tr>
       <tr><td>2</td><td>Encoder mounting bracket</td><td>Holds each axis encoder</td><td>Made to suit your lathe; see Build steps</td></tr>
-      <tr><td>4</td><td>2.2 kΩ resistor, 1/4 W</td><td>R1–R4, axis encoder pull-ups</td><td></td></tr>
-      <tr><td>3</td><td>2N3904 NPN transistor</td><td>Q1–Q3, spindle encoder inverters</td><td>Add 1 for the optional charge pump (Q4)</td></tr>
-      <tr><td>6</td><td>10 kΩ resistor, 1/4 W</td><td>R5–R10, inverter base and collector</td><td>Add 2 for the optional charge pump (R11, R12)</td></tr>
-      <tr><td>1</td><td>PC817 optocoupler, DIP-4</td><td>U1, isolates spindle control</td><td>See the Interface board tab</td></tr>
-      <tr><td>1</td><td>330 Ω resistor, 1/4 W</td><td>R13, PC817 LED current</td><td>Gives about 6 mA from 3.3 V</td></tr>
-      <tr><td>1</td><td>4.7 kΩ resistor, 1/4 W</td><td>R14, speed signal filter</td><td></td></tr>
-      <tr><td>1</td><td>10 µF electrolytic capacitor, 25 V or more</td><td>C1, speed signal filter</td><td>At least double your pot voltage</td></tr>
-      <tr><td>1 each</td><td>100 µF and 0.1 µF capacitors</td><td>C2, C3, steady the 3.3 V rail</td><td></td></tr>
+      <tr><td>3</td><td>4-channel bidirectional level shifter module (BSS138 type, sold as "IIC I2C logic level converter 3.3V-5V", pins pre-soldered)</td><td>LS1 spindle lines, LS2 X and Z encoders, LS3 charge pump</td><td>LS3 only with the optional CNC Online signal. The Level shifters tab has every pin. They come in packs of ten; keep the spares</td></tr>
+      <tr><td>1</td><td>PC817 optocoupler module, 1 channel, 3.3–5 V input, bare C and E output</td><td>Isolates spindle control from the lathe</td><td>The output must be the bare transistor (C/E or OUT+/OUT−), not a VCC/OUT/GND type. Or a PC817 and a 330 Ω resistor on perfboard</td></tr>
+      <tr><td>1</td><td>4.7 kΩ resistor, 1/4 W</td><td>Speed signal filter, at the PC817 output</td><td></td></tr>
+      <tr><td>1</td><td>10 µF electrolytic capacitor, 25 V or more</td><td>Speed signal filter, at the PC817 output</td><td>At least double your pot voltage</td></tr>
       <tr><td>1</td><td>10 kΩ linear potentiometer and knob</td><td>Speed knob</td><td>Must be linear (B taper)</td></tr>
-      <tr><td>1</td><td>Copper-clad board, FR-4, 150 × 100 mm, <b>double-sided</b></td><td>The interface board, milled from the DXFs</td><td>For example uxcell FR4 150 × 100 × 1.5 mm. Both sides are used, so don't strip either one</td></tr>
-      <tr><td>2</td><td>3 mm dowel pins, or two 1/8 in drill bits used shank down</td><td>Locate the board when you flip it to mill the second side</td><td>They go in the two alignment holes, through into the spoilboard</td></tr>
-      <tr><td>35 ways</td><td>Screw terminal blocks, 5.08 mm pitch</td><td>J1–J9 on the board</td><td>Every cable lands on a terminal, so it can be unplugged. 2- and 3-way blocks slot together to make longer ones</td></tr>
-      <tr><td>About 10 cm</td><td>Bare tinned copper wire, 0.5–0.6 mm (22–24 AWG)</td><td>Via pins V1–V15, which join the two sides</td><td>Resistor leg offcuts work just as well</td></tr>
-      <tr><td>1 set</td><td>Stranded hookup wire, 22–24 AWG, in several colors</td><td>Board, ESP32 and display wiring</td><td>The G540 manual requires stranded 14–24 AWG in its terminals</td></tr>
-      <tr><td>1</td><td>4-core cable, shielded if possible</td><td>Interface board to G540 terminals 1, 2, 3 and 12</td><td></td></tr>
+      <tr><td>1 pack</td><td>Dupont jumper wires, female-to-female and female-to-male</td><td>Module pins to the ESP32 and to the terminal strip</td><td></td></tr>
+      <tr><td>1</td><td>Screw terminal strip, about 12 ways, or lever connectors</td><td>Joins the encoder cables, the 12 V supply, the grounds and the module supply pins</td><td>Encoder brown wires meet the 12 V +; blue wires and shields meet the 12 V −</td></tr>
+      <tr><td>1 set</td><td>Stranded hookup wire, 22–24 AWG, in several colors</td><td>ESP32, module and display wiring</td><td>The G540 manual requires stranded 14–24 AWG in its terminals</td></tr>
+      <tr><td>1</td><td>4-core cable, shielded if possible</td><td>Spindle A, B, Z and ground to G540 terminals 2, 3, 1 and 12</td><td></td></tr>
+      <tr><td>—</td><td>Milled interface board: double-sided FR-4 150 × 100 mm, 3 mm pins, 35 ways of 5.08 mm terminals, bare wire, resistors, transistors, a DIP PC817</td><td>Alternative to the shifter modules</td><td>Only if you mill the board instead: see the Milled board tab for its own parts list</td></tr>
     </tbody></table></div>
     <h3>Optional</h3>
     <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Qty</th><th>Part</th><th>Why</th></tr></thead><tbody>
@@ -390,7 +385,7 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
   </div>
 
   <div class="hp-pane" data-hp="Wiring diagram">
-    <p class="sidenote">Select a row in the table to highlight that wire. A dot means wires are joined; wires crossing without a dot are not connected. Encoder cables are drawn in their real colors. The other colors are a suggested scheme. Encoder power is drawn as two buses for clarity; on the bench it lands on the interface board's terminals, as the Interface board tab shows.</p>
+    <p class="sidenote">Select a row in the table to highlight that wire. A dot means wires are joined; wires crossing without a dot are not connected. Encoder cables are drawn in their real colors. The other colors are a suggested scheme. Encoder power is drawn as two buses for clarity; on the bench they are the terminal strip. The Level shifters tab lists every module pin.</p>
     <div class="hp-fig" id="hpDiagram"></div>
     <h3>Every connection</h3>
     <div class="hp-scroll"><table class="hp-t hp-wires"><thead><tr><th>Color</th><th>Signal</th><th>From</th><th>Through</th><th>To</th></tr></thead><tbody id="hpWireRows"></tbody></table></div>
@@ -422,12 +417,46 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
     </tbody></table></div>
     <div class="hp-grid">
       <div class="hp-box"><b>What the display shows</b><div id="hpScreen"></div><div class="sidenote">Three full-width rows sized to read from across the shop: X, Z, then spindle RPM. The digits are about 13 mm tall on a 2.8-inch screen, half as tall again as before. Beside the RPM are the target, a speed bar with the target marked, and the loaded insert; an active alarm replaces the insert. Wi-Fi and CNC status are on the web page and the LEDs.</div>
-      <div class="sidenote" style="margin-top:8px"><b>Tap the screen</b> (anywhere; the three short lines in the X row's corner are the reminder) to open the <b>Settings menu</b>: Zero X, Zero Z, X shows diameter or radius, screen normal or upside down, swap red and blue, calibrate touch, <b>Info</b> (firmware version, Wi-Fi address and signal, the .local address, spindle run hours and powered-on hours), Close, and Reboot, which asks you to confirm. It closes on its own after 30 seconds. The very first tap runs the touch calibration instead: press the three crosses as they appear, and the menu opens. At power-up the screen shows a drawn lathe with the firmware version for two seconds. If the colours look wrong (the workpiece in that picture should be brass yellow, and in the menu the squares marked R, G and B should be red, green and blue), turn on <b>Swap red / blue</b>. The spindle hours count every second the spindle turns, are saved every minute, and are the same figure as the Run hours card on this page. Everything set here is saved; the diameter and upside-down switches are also in the web page's Settings.</div></div>
+      <div class="sidenote" style="margin-top:8px"><b>Tap the screen</b> (anywhere; the three short lines in the X row's corner are the reminder) to open the <b>Settings menu</b>: Zero X, Zero Z, X shows diameter or radius, screen normal or upside down, swap red and blue, calibrate touch, <b>View</b> (what fills the screen: everything, RPM only, X only, Z only, or X and Z; choose RPM only until the axis encoders are fitted, and the two axes stop showing zero), <b>Info</b> (firmware version, Wi-Fi address and signal, the .local address, spindle run hours and powered-on hours), Close, and Reboot, which asks you to confirm. It closes on its own after 30 seconds. The very first tap runs the touch calibration instead: press the three crosses as they appear, and the menu opens. At power-up the screen shows a drawn lathe with the firmware version for two seconds. If the colours look wrong (the workpiece in that picture should be brass yellow, and in the menu the squares marked R, G and B should be red, green and blue), turn on <b>Swap red / blue</b>. The spindle hours count every second the spindle turns, are saved every minute, and are the same figure as the Run hours card on this page. Everything set here is saved; the diameter and upside-down switches are also in the web page's Settings.</div></div>
     </div>
   </div>
 
-  <div class="hp-pane" data-hp="Interface board">
-    <p>The interface board sits between the cables and the ESP32. Every cable lands on a screw terminal (J1–J9), so anything can be unplugged. It is a two-sided board, 144 × 94 mm, designed to be milled on a desktop CNC from a 150 × 100 mm double-sided blank, with no plated holes. The picture shows the board from the component side: the top copper and its two traces, the bottom copper shown through the board, and every cable in its real color.</p>
+  <div class="hp-pane" data-hp="Level shifters">
+    <p>Between the cables and the ESP32 sit three ready-made <b>4-channel bidirectional level shifter modules</b> (the small BSS138 boards sold for I2C, with <b>HV</b>, <b>LV</b>, <b>GND</b> and four channel pins on each side) and one <b>PC817 optocoupler module</b>. Nothing is soldered: the modules come with header pins, so the wiring is jumper wires plus a terminal strip or lever connectors for the shared points. The milled interface board on the next tab does the same job and remains an alternative.</p>
+    <h3>Why a shifter, and why 12 V on its HV side</h3>
+    <p class="sidenote">The encoders have open-collector outputs: they can pull a line to 0 V but never drive it high, so every line needs a pull-up. The shifter module has 10 kΩ pull-ups built in, on both sides. With the encoder supply (12 V) on the HV side, the cables carry a 0–12 V swing that shrugs off noise, and the spindle lines sit at the same 12 V that the G540's own inputs pull them to, so the two never fight. The LV side, fed from the ESP32's 3V3 pin, delivers clean 3.3 V to the GPIOs. The module is bidirectional and needs no direction setting. The charge-pump line is different: it is a 5 V output from the UC100, so its module (LS3) gets 5 V on the HV side, not 12. Use a <b>12 V</b> encoder supply, not 24 V, so the HV side matches the G540.</p>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Module</th><th>HV pin</th><th>LV pin</th><th>HV side (cable)</th><th>LV side (ESP32)</th></tr></thead><tbody>
+      <tr><td rowspan="6"><b>LS1</b> spindle</td><td>HV</td><td>LV</td><td>12 V supply +</td><td>3V3 pin</td></tr>
+      <tr><td colspan="2">GND (either side)</td><td>12 V supply −, encoder blue wire and shield, G540 terminal 12</td><td>ESP32 G</td></tr>
+      <tr><td>HV1</td><td>LV1</td><td>Spindle encoder <b>black</b> (A); the same wire also goes to G540 terminal 2</td><td>GPIO 4</td></tr>
+      <tr><td>HV2</td><td>LV2</td><td>Spindle encoder <b>white</b> (B); also G540 terminal 3</td><td>GPIO 5</td></tr>
+      <tr><td>HV3</td><td>LV3</td><td>Spindle encoder <b>orange</b> (Z); also G540 terminal 1</td><td>GPIO 6</td></tr>
+      <tr><td>HV4</td><td>LV4</td><td>spare</td><td>—</td></tr>
+      <tr><td rowspan="6"><b>LS2</b> X and Z</td><td>HV</td><td>LV</td><td>12 V supply +</td><td>3V3 pin</td></tr>
+      <tr><td colspan="2">GND (either side)</td><td>12 V supply −, encoder blue wires and shields</td><td>ESP32 G</td></tr>
+      <tr><td>HV1</td><td>LV1</td><td>X encoder <b>black</b> (A)</td><td>GPIO 7</td></tr>
+      <tr><td>HV2</td><td>LV2</td><td>X encoder <b>white</b> (B)</td><td>GPIO 15</td></tr>
+      <tr><td>HV3</td><td>LV3</td><td>Z encoder <b>black</b> (A)</td><td>GPIO 16</td></tr>
+      <tr><td>HV4</td><td>LV4</td><td>Z encoder <b>white</b> (B)</td><td>GPIO 17</td></tr>
+      <tr><td rowspan="3"><b>LS3</b> charge pump (optional)</td><td>HV</td><td>LV</td><td>ESP32 <b>5V</b> pin</td><td>3V3 pin</td></tr>
+      <tr><td colspan="2">GND (either side)</td><td>DB25 pin 18</td><td>ESP32 G</td></tr>
+      <tr><td>HV1</td><td>LV1</td><td>DB25 pin 16</td><td>GPIO 18</td></tr>
+    </tbody></table></div>
+    <p class="sidenote">Encoder <b>brown</b> wires go to the 12 V supply +, <b>blue</b> wires and the shields to the 12 V supply −, which is also ESP32 ground and G540 terminal 12: one common ground. Each module's GND pin must be connected (either side; the two are linked on the board), its LV pin must see 3.3 V and its HV pin its supply, or the module passes nothing. Insulate the encoders' unused orange wires on X and Z.</p>
+    <h3>Spindle control: the PC817 stage stays</h3>
+    <p>A shifter has no isolation, and the lathe's speed-pot circuit may sit at mains potential, so the optocoupler is not optional. Use a ready-made <b>1-channel PC817 module</b> with a 3.3–5 V input (the LED resistor is on the board) whose output terminals are the bare transistor, marked <b>C</b> and <b>E</b> (or OUT+ and OUT−). Avoid the type with a VCC / OUT / GND output: it needs a supply on the lathe side.</p>
+    <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Module pin</th><th>Connects to</th></tr></thead><tbody>
+      <tr><td>IN+ (VCC or signal)</td><td>GPIO 2</td></tr>
+      <tr><td>IN− (GND)</td><td>ESP32 G</td></tr>
+      <tr><td>Output C (collector, OUT+)</td><td>Lathe pot <b>HIGH</b></td></tr>
+      <tr><td>Output E (emitter, OUT−)</td><td>Lathe pot <b>WIPER</b>; the 4.7 kΩ resistor and the 10 µF capacitor's + lead also start here</td></tr>
+      <tr><td>—</td><td>Lathe pot <b>LOW</b>: the other end of the 4.7 kΩ and the capacitor's − lead</td></tr>
+    </tbody></table></div>
+    <p class="sidenote">The 4.7 kΩ and the 10 µF are the only loose parts left; join them with the WIPER and LOW wires in a small terminal strip or on a scrap of perfboard. Everything on the output side belongs to the lathe: keep it inside the controller enclosure, insulated, and never let it touch ESP32 ground. Mount the PC817 module so the gap between its input and output pins stays clear and dry; on some modules that gap is only 6–8 mm, and it is all the creepage there is.</p>
+  </div>
+
+  <div class="hp-pane" data-hp="Milled board (alt.)">
+    <p><b>Alternative to the level shifter modules.</b> The interface board sits between the cables and the ESP32. Every cable lands on a screw terminal (J1–J9), so anything can be unplugged. It is a two-sided board, 144 × 94 mm, designed to be milled on a desktop CNC from a 150 × 100 mm double-sided blank, with no plated holes. The picture shows the board from the component side: the top copper and its two traces, the bottom copper shown through the board, and every cable in its real color.</p>
     <div class="hp-fig"><img src="hw/board_assembly.svg" alt="Interface board seen from the component side. The three encoders wire into J3, J1 and J2 on the left, the 12 V supply into J4 and the optional DB25 tap into J6. J5 at the top goes to the G540. J7 and J8 on the right go to the ESP32, and J9 in the isolated top right corner goes to the lathe speed pot." style="width:100%;min-width:900px;height:auto;display:block"></div>
     <div class="hp-grid">
       <div class="hp-box"><b>Reading the board</b>
@@ -573,13 +602,13 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
 
   <div class="hp-pane" data-hp="G540">
     <h3>Why the G540 is still connected</h3>
-    <p>The ESP32 does not need the G540, but UCCNC does. Threading with G33, including every program from the Thread Wizard, needs UCCNC to see the spindle encoder through the G540's inputs. So the spindle encoder's signals go to both: to the G540 for UCCNC, and through inverters to the ESP32. The X and Z encoders go only to the ESP32. The step and direction pins are no longer tapped.</p>
+    <p>The ESP32 does not need the G540, but UCCNC does. Threading with G33, including every program from the Thread Wizard, needs UCCNC to see the spindle encoder through the G540's inputs. So the spindle encoder's signals go to both: to the G540 for UCCNC, and through level shifter LS1 to the ESP32. The X and Z encoders go only to the ESP32. The step and direction pins are no longer tapped.</p>
     <div class="hp-fig" id="hpG540"></div>
     <h3>12-pin main terminal block</h3>
     <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Terminal</th><th>G540 function</th><th>In this project</th></tr></thead><tbody>
-      <tr class="hp-use"><td>1</td><td>Input 1 (DB25 pin 10)</td><td><b>Spindle index (Z)</b>: from J5 T1. Encoder orange</td></tr>
-      <tr class="hp-use"><td>2</td><td>Input 2 (DB25 pin 11)</td><td><b>Spindle A</b>: from J5 T2. Encoder black</td></tr>
-      <tr class="hp-use"><td>3</td><td>Input 3 (DB25 pin 12)</td><td><b>Spindle B</b>: from J5 T3. Encoder white</td></tr>
+      <tr class="hp-use"><td>1</td><td>Input 1 (DB25 pin 10)</td><td><b>Spindle index (Z)</b>: the encoder orange wire, shared with LS1 HV3</td></tr>
+      <tr class="hp-use"><td>2</td><td>Input 2 (DB25 pin 11)</td><td><b>Spindle A</b>: the encoder black wire, shared with LS1 HV1</td></tr>
+      <tr class="hp-use"><td>3</td><td>Input 3 (DB25 pin 12)</td><td><b>Spindle B</b>: the encoder white wire, shared with LS1 HV2</td></tr>
       <tr><td>4</td><td>Input 4 (DB25 pin 13)</td><td>Not used. Free for a limit switch</td></tr>
       <tr><td>5</td><td>Output 1 (DB25 pin 17)</td><td>Not used</td></tr>
       <tr><td>6</td><td>Output 2 (DB25 pin 1)</td><td>Not used</td></tr>
@@ -588,7 +617,7 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
       <tr><td>9</td><td>VFD +10 V</td><td>Not used</td></tr>
       <tr><td>10</td><td>Disable input (E-stop)</td><td><b>Leave your E-stop as it is.</b> Not touched by this project</td></tr>
       <tr class="hp-warn"><td>11</td><td>Supply +, 18–50 V</td><td><b>Never connect anything from this project.</b> It would destroy the encoders and the ESP32</td></tr>
-      <tr class="hp-use"><td>12</td><td>Supply ground</td><td><b>Common ground</b>: from J5 T12</td></tr>
+      <tr class="hp-use"><td>12</td><td>Supply ground</td><td><b>Common ground</b>: the 12 V supply − (also ESP32 ground and the shifters' GND)</td></tr>
     </tbody></table></div>
     <h3>DB25 connector</h3>
     <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Pin</th><th>G540 function</th><th>In this project</th></tr></thead><tbody>
@@ -637,11 +666,11 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
     <h3>Prove each function</h3>
     <div class="hp-scroll"><table class="hp-t"><thead><tr><th>Test</th><th>You should see</th><th>If not</th></tr></thead><tbody>
       <tr><td>Power up the ESP32</td><td>The display shows the DRO screen within a few seconds</td><td>See Display in Troubleshooting</td></tr>
-      <tr><td>Turn the X and Z handwheels, or jog slowly</td><td>The DRO follows on the page and the display, and the RGB LED flashes blue</td><td>Wrong way: use Invert X or Z count. No change: check encoder power and the pull-ups</td></tr>
+      <tr><td>Turn the X and Z handwheels, or jog slowly</td><td>The DRO follows on the page and the display, and the RGB LED flashes blue</td><td>Wrong way: use Invert X or Z count. No change: check encoder power, and 12 V on LS2 HV, 3.3 V on LS2 LV and its GND</td></tr>
       <tr><td>Move a slide away and back to the same indicator reading</td><td>The DRO returns to the same value, within one or two counts</td><td>Drift means a slipping coupling or electrical noise</td></tr>
-      <tr><td>Run a fast rapid back and forth 10 times, then return home</td><td>The DRO still matches the indicator</td><td>Lost counts mean noise or a weak pull-up. Check R1–R4 and the shields</td></tr>
+      <tr><td>Run a fast rapid back and forth 10 times, then return home</td><td>The DRO still matches the indicator</td><td>Lost counts mean noise. Check the shields and that LS2 really has 12 V on its HV pin</td></tr>
       <tr><td>Turn the chuck by hand with the lathe off</td><td>Direction and RPM react</td><td>Check the spindle encoder supply and Q1–Q3</td></tr>
-      <tr><td>Turn the chuck by hand and watch UCCNC's input diagnostics</td><td>Inputs 1, 2 and 3 still change state</td><td>The inverter taps may be loading the G540 inputs. Disconnect R5, R7 and R9 one at a time to find which</td></tr>
+      <tr><td>Turn the chuck by hand and watch UCCNC's input diagnostics</td><td>Inputs 1, 2 and 3 still change state</td><td>LS1 may be loading the G540 inputs: an HV pin left unconnected, or at 0 V, pulls every input low. Check 12 V on LS1 HV, then disconnect HV1–HV3 one at a time to find which</td></tr>
       <tr><td>Set a Target of 200 RPM</td><td>The spindle runs near 200, and the page and display agree</td><td>Check the PC817 wiring, or see Troubleshooting</td></tr>
       <tr><td>Check RPM with a handheld tachometer</td><td>The reading matches</td><td>Check Spindle encoder PPR and that the encoder turns 1:1 with the spindle</td></tr>
       <tr><td>Reboot the ESP32 while the spindle runs at low speed</td><td>The spindle slows to a stop while it restarts</td><td>Stop and check the speed control wiring before going further</td></tr>
@@ -665,17 +694,17 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
       <tr><td>Tapping the screen does nothing</td><td>Touch pins not wired, or not calibrated</td><td>T_CLK to 12, T_DIN to 11, T_DO to 13, T_CS to 14. The first tap after a fresh flash starts the calibration; press the three crosses firmly with a fingernail or the stylus</td></tr>
       <tr><td>Display lit but white or blank</td><td>Display signals wired wrong</td><td>Check CS to 10, RESET to 8, DC to 9, SDI (MOSI) to 11 and SCK to 12. SDO (MISO) stays unconnected</td></tr>
       <tr><td>Display picture upside down</td><td>Mounting</td><td>Set Display upside down in Settings</td></tr>
-      <tr><td>An axis never changes</td><td>No encoder power, a missing pull-up, or a wrong pin</td><td>Measure 12 V between J1 or J2 +12V and 0V. Black and white should each read either about 0 V or about 3.3 V at the ESP32 pin, and change as you turn the encoder by hand</td></tr>
+      <tr><td>An axis never changes</td><td>No encoder power, a missing pull-up, or a wrong pin</td><td>Measure 12 V between the encoder brown and blue wires, 12 V on LS2 HV and 3.3 V on LS2 LV. Black and white should each read either about 0 V or about 12 V at the module's HV pins, and 0 or 3.3 V at the ESP32 pin, changing as you turn the encoder by hand</td></tr>
       <tr><td>Axis counts the wrong way</td><td>Normal, depending on mounting</td><td>Use Invert X or Z count in Settings</td></tr>
-      <tr><td>Axis moves only one count back and forth</td><td>A and B on the same pin, or one is dead</td><td>Check black and white go to two different GPIOs, each with its own pull-up</td></tr>
+      <tr><td>Axis moves only one count back and forth</td><td>A and B on the same pin, or one is dead</td><td>Check black and white go through two different shifter channels to two different GPIOs</td></tr>
       <tr><td>Wrong distance</td><td>Wrong travel per encoder rev, or X diameter setting</td><td>Calibrate with a dial indicator, as on the Setup and checks tab</td></tr>
       <tr><td>DRO drifts or jumps</td><td>Slipping coupling, or electrical noise</td><td>Tighten the coupling. Ground each shield at the board only, and route encoder cables away from motor and mains wiring</td></tr>
       <tr><td>DRO differs from UCCNC after a direction change</td><td>Backlash</td><td>Normal. The encoder sees the screw, so it shows backlash between motor and screw, but not any in the nut</td></tr>
-      <tr><td>Spindle: no signal</td><td>No encoder supply, or a wrong terminal</td><td>Measure 12 V at J3. Check J5 T12 goes to G540 terminal 12</td></tr>
-      <tr><td>UCCNC lost its spindle input</td><td>A wrong J5 terminal, or the taps loading the inputs</td><td>Check J5 against the G540 tab, then disconnect R5, R7 and R9 one at a time</td></tr>
+      <tr><td>Spindle: no signal</td><td>No encoder supply, or a wrong terminal</td><td>Measure 12 V between the spindle encoder brown and blue wires, and 12 V on LS1 HV. Check the ground wire reaches G540 terminal 12</td></tr>
+      <tr><td>UCCNC lost its spindle input</td><td>A wrong G540 terminal, or LS1 without 12 V on its HV pin</td><td>Check the terminals against the G540 tab and the 12 V on LS1 HV, then disconnect LS1 HV1–HV3 one at a time</td></tr>
       <tr><td>RPM jumps around</td><td>Noise on the encoder cable, or a slipping coupling</td><td>Use the shield, and route it away from the motor. Check the coupling</td></tr>
       <tr><td>RPM reads double or half</td><td>Wrong Spindle encoder PPR, or the encoder is not 1:1</td><td>Correct the PPR for your encoder and drive ratio</td></tr>
-      <tr><td>Spindle will not start</td><td>PC817 wiring, or a low target</td><td>Check R13 and the orientation of U1 pin 1. Check HIGH, WIPER and LOW at J9, and check the knob or Target</td></tr>
+      <tr><td>Spindle will not start</td><td>PC817 wiring, or a low target</td><td>Check the PC817 module's input (IN+ to GPIO 2, IN− to G) and its output (C to HIGH, E to WIPER, with the 4.7 kΩ and 10 µF to LOW), and check the knob or Target</td></tr>
       <tr><td>Spindle runs flat out</td><td>Wiring fault on the controller side, or speed-signal polarity</td><td><b>Stop using it right away.</b> Unplug the lathe and check HIGH and LOW are not swapped, and that R14 is fitted</td></tr>
       <tr><td>Speed hunts up and down</td><td>Loop gains too high</td><td>Halve KP, then lower KI if it still hunts</td></tr>
       <tr><td>CNC Offline</td><td>No charge pump tap, or no signal</td><td>Normal if you skipped the optional tap. Otherwise start and reset UCCNC, and check the pin 16 tap</td></tr>
@@ -694,7 +723,7 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
 <div class="toast" id="toast"></div>
 <script>
 // Bump WEB_VERSION with every page change and record it in CHANGELOG.md. FW_MIN is the oldest firmware this page works fully with.
-const WEB_VERSION='1.20.1',FW_MIN='1.4.0';
+const WEB_VERSION='1.21.0',FW_MIN='1.4.0';
 // Interface board revision. hardware/make_pcb.py writes it here; every board file name carries it.
 const BOARD_REV='F';
 document.querySelectorAll('a.hwf').forEach(a=>{const n='board_rev'+BOARD_REV+'_'+a.dataset.f;a.href='hw/'+n;a.download=n;a.textContent=n});document.querySelectorAll('.hwrev').forEach(e=>e.textContent=BOARD_REV);
@@ -1073,14 +1102,14 @@ connect();if(location.protocol==='file:')startSim();
 // One list drives the diagram and the connection table. y is the row on the ESP32 header (see HP_J1 and HP_J3).
 const HP_J1=['3V3','3V3','RST','4','5','6','7','15','16','17','18','8','3','46','9','10','11','12','13','14','5V','G'],HP_J3=['G','TX','RX','1','2','42','41','40','39','38','37','36','35','0','45','48','47','21','20','19','G','G'];
 const HP_WIRES=[
- {id:'enca',c:'#facc15',n:'Spindle A',from:'Spindle encoder black, J3 A',via:'Q1 inverter; also J5 T2 to G540 terminal 2',to:'GPIO 4'},
- {id:'encb',c:'#22c55e',n:'Spindle B',from:'Spindle encoder white, J3 B',via:'Q2 inverter; also J5 T3 to G540 terminal 3',to:'GPIO 5'},
- {id:'encz',c:'#fb923c',n:'Spindle index',from:'Spindle encoder orange, J3 Z',via:'Q3 inverter; also J5 T1 to G540 terminal 1',to:'GPIO 6'},
- {id:'xa',c:'#38bdf8',n:'X encoder A',from:'X encoder black, J1 A',via:'R1 2.2 kΩ pull-up to 3V3',to:'GPIO 7'},
- {id:'xb',c:'#818cf8',n:'X encoder B',from:'X encoder white, J1 B',via:'R2 2.2 kΩ pull-up to 3V3',to:'GPIO 15'},
- {id:'za',c:'#f472b6',n:'Z encoder A',from:'Z encoder black, J2 A',via:'R3 2.2 kΩ pull-up to 3V3',to:'GPIO 16'},
- {id:'zb',c:'#c084fc',n:'Z encoder B',from:'Z encoder white, J2 B',via:'R4 2.2 kΩ pull-up to 3V3',to:'GPIO 17'},
- {id:'cp',c:'#2dd4bf',n:'Charge pump (optional)',from:'DB25 pin 16, J6',via:'Q4 inverter',to:'GPIO 18'},
+ {id:'enca',c:'#facc15',n:'Spindle A',from:'Spindle encoder black',via:'LS1 HV1 → LV1; the same wire also goes to G540 terminal 2',to:'GPIO 4'},
+ {id:'encb',c:'#22c55e',n:'Spindle B',from:'Spindle encoder white',via:'LS1 HV2 → LV2; also G540 terminal 3',to:'GPIO 5'},
+ {id:'encz',c:'#fb923c',n:'Spindle index',from:'Spindle encoder orange',via:'LS1 HV3 → LV3; also G540 terminal 1',to:'GPIO 6'},
+ {id:'xa',c:'#38bdf8',n:'X encoder A',from:'X encoder black',via:'LS2 HV1 → LV1 (pulled up to 12 V on the cable side)',to:'GPIO 7'},
+ {id:'xb',c:'#818cf8',n:'X encoder B',from:'X encoder white',via:'LS2 HV2 → LV2',to:'GPIO 15'},
+ {id:'za',c:'#f472b6',n:'Z encoder A',from:'Z encoder black',via:'LS2 HV3 → LV3',to:'GPIO 16'},
+ {id:'zb',c:'#c084fc',n:'Z encoder B',from:'Z encoder white',via:'LS2 HV4 → LV4',to:'GPIO 17'},
+ {id:'cp',c:'#2dd4bf',n:'Charge pump (optional)',from:'DB25 pin 16',via:'LS3 HV1 → LV1, with LS3 HV fed from the 5V pin',to:'GPIO 18'},
  {id:'tft_rst',c:'#fca5a5',n:'Display RESET',from:'GPIO 8',via:'Direct',to:'Display RESET'},
  {id:'tft_dc',c:'#86efac',n:'Display DC',from:'GPIO 9',via:'Direct',to:'Display DC'},
  {id:'tft_cs',c:'#fde68a',n:'Display CS',from:'GPIO 10',via:'Direct',to:'Display CS'},
@@ -1091,9 +1120,9 @@ const HP_WIRES=[
  {id:'tft_vcc',c:'#dc2626',n:'Display power',from:'5V pin (3V3 pin if the module\'s J1 jumper is bridged)',via:'Direct',to:'Display VCC'},
  {id:'tft_led',c:'#ef4444',n:'Display backlight',from:'3V3 pin',via:'Direct',to:'Display LED'},
  {id:'knob',c:'#a3e635',n:'Knob wiper',from:'10 kΩ pot, center lug',via:'Direct',to:'GPIO 1'},
- {id:'pwm',c:'#fb7185',n:'Spindle PWM',from:'GPIO 2',via:'J8, R13 330 Ω',to:'PC817 pin 1'},
- {id:'v33',c:'#ef4444',n:'3.3 V',from:'3V3 pin',via:'J8 3V3',to:'Board 3V3 rail and knob'},
- {id:'gnd',c:'#0b0f19',n:'Ground',from:'G pins',via:'J8 GND',to:'Board ground copper, display, knob; on to G540 terminal 12 through J5'},
+ {id:'pwm',c:'#fb7185',n:'Spindle PWM',from:'GPIO 2',via:'PC817 module input (its 330 Ω is on the module)',to:'PC817 LED, pin 1'},
+ {id:'v33',c:'#ef4444',n:'3.3 V',from:'3V3 pin',via:'Direct',to:'LV pins of LS1, LS2 and LS3; knob'},
+ {id:'gnd',c:'#0b0f19',n:'Ground',from:'G pins',via:'Direct',to:'GND pins of the shifters and the PC817 module, display, knob, 12 V supply − and encoder blue wires; on to G540 terminal 12'},
  {id:'epow',c:'#b45309',n:'Encoder power',from:'12 V supply +, J4',via:'Board +12V rail',to:'Brown wire of all three encoders (J1, J2, J3)'},
  {id:'e0v',c:'#3b82f6',n:'Encoder 0 V',from:'12 V supply −, J4',via:'Board GND rail',to:'Blue wire of all three encoders'},
  {id:'ehigh',c:'#fdba74',n:'Controller HIGH',from:'PC817 pin 4',via:'J9, isolated side',to:'Lathe pot HIGH'},
@@ -1125,15 +1154,16 @@ const HP_T=(x,yy,s,o='')=>'<text x="'+x+'" y="'+yy+'" '+o+'>'+s+'</text>',HP_BOX
 function hpDiagram(){const y=n=>70+(n-1)*26,w=id=>HP_WIRES.find(x=>x.id===id).c,L=510,R=690,BK='#0b0f19',WH='#f8fafc',OR='#f97316',t=HP_T,box=HP_BOX,dot=HP_DOT,
   seg=(d,c)=>(c===BK?'<path d="'+d+'" stroke="#e6edf7" stroke-width="5"/>':'')+'<path d="'+d+'" stroke="'+c+'" stroke-width="3"/>',
   g=(id,d,extra='')=>'<g data-w="'+id+'" fill="none" stroke-linejoin="round">'+seg(d,w(id))+extra+'</g>';
- let s='<svg viewBox="0 0 1180 730" role="img" aria-label="System wiring diagram: three encoders, the interface board, the G540, the display, the knob and the lathe controller connected to the ESP32-S3">';
+ let s='<svg viewBox="0 0 1180 730" role="img" aria-label="System wiring diagram: three encoders, the level shifter modules, the G540, the display, the knob and the lathe controller connected to the ESP32-S3">';
  s+=box(L,40,R-L,590,'#123027')+'<rect x="560" y="44" width="80" height="16" fill="#334155"/>'+t(600,56,'antenna','text-anchor="middle" class="m"')+box(555,300,90,70,'#0f172a')+t(600,330,'ESP32-S3','text-anchor="middle" font-weight="700"')+t(600,348,'DevKitC-1','text-anchor="middle" class="m"');
  const usedL={'3V3':1,'4':1,'5':1,'6':1,'7':1,'15':1,'16':1,'17':1,'18':1,'8':1,'9':1,'10':1,'11':1,'12':1,'5V':1,'G':1},usedR={'1':1,'2':1};
  HP_J1.forEach((p,i)=>{const u=usedL[p];s+='<circle cx="'+L+'" cy="'+y(i+1)+'" r="5" fill="'+(u?'#fde047':'#475569')+'"/>'+t(L+11,y(i+1)+4,p,'class="'+(u?'hp-pin':'m')+'"')});
  HP_J3.forEach((p,i)=>{const u=usedR[p]||(p==='G'&&i===21);s+='<circle cx="'+R+'" cy="'+y(i+1)+'" r="5" fill="'+(u?'#fde047':'#475569')+'"/>'+t(R-11,y(i+1)+4,p,'text-anchor="end" class="'+(u?'hp-pin':'m')+'"')});
  s+='<rect x="548" y="628" width="32" height="14" fill="#94a3b8"/>'+t(586,656,'USB','class="m"')+'<rect x="620" y="628" width="32" height="14" fill="#94a3b8"/>'+t(636,656,'UART','text-anchor="middle" class="m"');
  // Interface board
- const bTop=y(4)-22,bBot=y(11)+16;s+=box(330,bTop,120,bBot-bTop,'#16263f')+t(390,bTop-8,'Interface board','text-anchor="middle" font-weight="700"');
- [['Q1 inverter',4],['Q2 inverter',5],['Q3 inverter',6],['R1 2.2 kΩ',7],['R2 2.2 kΩ',8],['R3 2.2 kΩ',9],['R4 2.2 kΩ',10],['Q4 inverter',11]].forEach(r=>{s+=t(390,y(r[1])+4,r[0],'text-anchor="middle" class="m"')});
+ const bTop=y(4)-22,bBot=y(11)+16;s+=box(330,bTop,120,bBot-bTop,'#16263f')+t(390,bTop-8,'Level shifters','text-anchor="middle" font-weight="700"')+t(336,bTop+11,'HV 12 V','class="m"')+t(444,bTop+11,'LV 3.3 V','text-anchor="end" class="m"');
+ s+='<path d="M330 '+(y(6)+13)+'H450M330 '+(y(10)+13)+'H450" stroke="#475569"/>';
+ [['LS1 ch1',4],['LS1 ch2',5],['LS1 ch3',6],['LS2 ch1',7],['LS2 ch2',8],['LS2 ch3',9],['LS2 ch4',10],['LS3 ch1, HV 5 V',11]].forEach(r=>{s+=t(390,y(r[1])+4,r[0],'text-anchor="middle" class="m"')});
  // Encoders, with their real cable colors as far as the board
  const enc=(name,sub,rows,cols,ids)=>{const top=y(rows[0])-12,bot=y(rows[rows.length-1])+12,mid=(top+bot)/2;let a=box(40,top,96,bot-top,'#1f2937')+t(48,mid-2,name,'font-weight="700"')+t(48,mid+12,sub,'class="m"');
   rows.forEach((r,i)=>{const yy=y(r);a+='<g data-w="'+ids[i]+'" fill="none">'+seg('M136 '+yy+'H330',cols[i])+seg('M450 '+yy+'H'+L,w(ids[i]))+'</g>'+t(128,yy+4,['A','B','Z'][i],'text-anchor="end" class="m"')});return a};
@@ -1143,12 +1173,12 @@ function hpDiagram(){const y=n=>70+(n-1)*26,w=id=>HP_WIRES.find(x=>x.id===id).c,
  // Encoder power buses on the left
  const sy=420,pX=20,nX=30,ePins=[[y(4)+4,y(5)+10],[y(7)+0,y(8)+0],[y(9)+0,y(10)+0]];
  s+=box(40,sy,96,58)+t(88,sy+22,'12 V supply','text-anchor="middle" font-weight="700"')+t(88,sy+40,'5–24 V, 0.5 A','text-anchor="middle" class="m"');
- let pp='M40 '+(sy+16)+'H'+pX+'V'+(ePins[0][0]-8),nn='M40 '+(sy+40)+'H'+nX+'V'+(ePins[0][1]-4),pd='',nd='';
+ let pp='M40 '+(sy+16)+'H'+pX+'V'+(ePins[0][0]-8)+'M'+pX+' '+(ePins[0][0]-8)+'V'+(bTop-10)+'H340V'+bTop,nn='M40 '+(sy+40)+'H'+nX+'V'+(ePins[0][1]-4),pd='',nd='';
  [[y(4)-6,y(6)+4],[y(7)-4,y(8)+4],[y(9)-4,y(10)+4]].forEach((r,i)=>{pp+='M'+pX+' '+r[0]+'H40';nn+='M'+nX+' '+r[1]+'H40';if(i){pd+=dot(pX,r[0],w('epow'));nd+=dot(nX,r[1],w('e0v'))}});
  s+=g('epow',pp,pd)+g('e0v',nn,nd)+t(46,sy+74,'brown +12V','class="m"')+t(46,sy+88,'blue 0 V','class="m"');
  // Interface board to the G540 (J5), running down the left of the display
  const gy=470;s+=box(170,gy,120,110)+t(230,gy-8,'G540','text-anchor="middle" font-weight="700"')+t(282,gy+24,'Terminal 2','text-anchor="end"')+t(282,gy+48,'Terminal 3','text-anchor="end"')+t(282,gy+72,'Terminal 1','text-anchor="end"')+t(282,gy+96,'Terminal 12','text-anchor="end"');
- s+=g('enca','M336 '+bBot+'V'+(gy+20)+'H290')+g('encb','M345 '+bBot+'V'+(gy+44)+'H290')+g('encz','M354 '+bBot+'V'+(gy+68)+'H290')+t(318,bBot+14,'J5','class="m"');
+ s+=g('enca','M336 '+bBot+'V'+(gy+20)+'H290')+g('encb','M345 '+bBot+'V'+(gy+44)+'H290')+g('encz','M354 '+bBot+'V'+(gy+68)+'H290')+t(326,bBot+14,'to G540','text-anchor="end" class="m"');
  // Display, wired straight to the ESP32
  const dx=364,dTop=380,dBot=650;s+=box(dx,dTop,86,dBot-dTop,'#111827')+t(dx+43,dTop-8,'Display 2.8 in','text-anchor="middle" font-weight="700"')+'<rect x="'+(dx+8)+'" y="'+(dTop+46)+'" width="44" height="34" rx="3" fill="#0a1020" stroke="#38bdf8"/>'+t(dx+30,dTop+68,'0.48','text-anchor="middle" style="font-size:11px;fill:#38bdf8;font-weight:700"');
  const dp=[['RST',392,'tft_rst','M'+L+' '+y(12)+'H472V392H450'],['LED',416,'tft_led','M'+L+' '+y(2)+'H486V416H450'],['DC',y(15),'tft_dc','M'+L+' '+y(15)+'H450'],['CS',y(16),'tft_cs','M'+L+' '+y(16)+'H450'],['MOSI',y(17),'tft_mosi','M'+L+' '+y(17)+'H450'],['SCK',y(18),'tft_sck','M'+L+' '+y(18)+'H450'],['T_DO',y(19),'tft_tdo','M'+L+' '+y(19)+'H450'],['T_CS',y(20),'tft_tcs','M'+L+' '+y(20)+'H450'],['VCC',600,'tft_vcc','M'+L+' '+y(21)+'H478V600H450']];
@@ -1163,7 +1193,7 @@ function hpDiagram(){const y=n=>70+(n-1)*26,w=id=>HP_WIRES.find(x=>x.id===id).c,
  s+=g('v33','M760 122H800',dot(760,122,w('v33')))+g('knob','M'+R+' '+y(4)+'H800');
  // PC817, filter and controller
  s+=g('pwm','M'+R+' '+y(5)+'H712V262H800')+'<rect x="800" y="252" width="44" height="20" rx="3" fill="#d6b98c"/>'+t(822,266,'330 Ω','text-anchor="middle" style="fill:#1e293b"')+g('pwm','M844 262H870');
- s+=box(870,240,80,70)+t(910,278,'PC817','text-anchor="middle" font-weight="700"')+t(876,258,'1','class="m"')+t(876,300,'2','class="m"')+t(944,258,'4','text-anchor="end" class="m"')+t(944,300,'3','text-anchor="end" class="m"')+t(910,326,'on the interface board','text-anchor="middle" class="m"');
+ s+=box(870,240,80,70)+t(910,278,'PC817','text-anchor="middle" font-weight="700"')+t(876,258,'1','class="m"')+t(876,300,'2','class="m"')+t(944,258,'4','text-anchor="end" class="m"')+t(944,300,'3','text-anchor="end" class="m"')+t(910,326,'1-channel module','text-anchor="middle" class="m"');
  s+='<path d="M910 212V238M910 334V378" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6 4"/>'+t(910,206,'Isolation barrier','text-anchor="middle" style="fill:#f59e0b"');
  s+=g('ehigh','M950 262H1000V250H1040')+g('ewip','M950 288H1040',dot(975,288,w('ewip'))+dot(1010,288,w('ewip')))+g('elow','M975 288V300M975 330V345H1020V326H1040M1010 288V312M1010 322V345');
  s+='<rect x="965" y="300" width="20" height="30" fill="#d6b98c"/>'+t(975,362,'4.7 kΩ','text-anchor="middle" class="m"')+'<path d="M998 312H1022M998 322H1022" stroke="#e6edf7" stroke-width="3"/>'+t(1028,362,'10 µF','text-anchor="middle" class="m"');
@@ -1251,17 +1281,13 @@ const HP_STEPS=[
   ['Unplug the ESP32. Do this every time before changing wiring.','']]],
  ['Display',[
   ['Wire the display straight to the ESP32: VCC to 3V3 (J1 jumper bridged) or 5V (J1 open), GND to G, CS to GPIO 10, RESET to 8, DC to 9, SDI (MOSI) to 11, SCK to 12, LED to 3V3. Touch: T_CLK to 12, T_DIN to 11, T_DO to 13, T_CS to 14.','Leave SDO (MISO) and T_IRQ unconnected. Keep these wires under about 20 cm. At power-up you should see the lathe picture with the firmware version, then the DRO; the first tap on the screen starts the touch calibration.'],
-  ['Power up: the display should show the X, Z and spindle rows. Unplug again.','If it is blank, see Troubleshooting.']]],
- ['Build the interface board (nothing connected to the lathe)',[
-  ['Mill side 1 from the _bottom.dxf file and drill every hole, then flip the board on the alignment pins, mill side 2 from the _top.dxf file and cut it out, including the slot under U1.','The Interface board tab has the milling steps and settings.'],
-  ['Before fitting anything, check the bare board with a meter, on both sides: no continuity between neighbouring traces, and none between the 3V3 strips, the +12V traces and the ground copper. On the top, check that no lead hole touches the ground copper around it.','Clear any copper whisker with a knife. It is far easier now than after soldering.'],
-  ['Fit the 15 via pins V1–V15 first: push a bare wire (a resistor leg offcut) through each gold-ringed hole, solder it on both sides and trim it flush.','V1–V3 carry +12V and V4–V7 carry 3V3 to the two top traces; V8–V15 join the top and bottom ground. Then check that +12V reads continuous from J4 to J1 and J2, and 3V3 from J8 to all four 3V3 strips.'],
-  ['Fit the resistors. R1–R4 (2.2 kΩ) and R6, R8, R10, R12 (10 kΩ) stand on end, with the body over the circled pad.','The Where each part goes table and the printed labels in the board picture show each one.'],
-  ['Fit Q1–Q4 (2N3904) with the flat face matching the outline, then U1 with its pin 1 dot at the marked corner.','Q4, R11 and R12 are only needed for the optional charge pump.'],
-  ['Fit C1 and C2 with the + lead on the pad marked +, then C3, then the screw terminals last.',''],
-  ['Check with a meter again: no short between 3V3, +12V and GND.','This catches the most common build fault.'],
-  ['Wire J7 to the ESP32: GPIO 4, 5, 6 and 18. Wire J8: GPIO 2, G, GPIO 7, 15, 16, 3V3 and 17.','Pin names are printed beside each screw.'],
-  ['Power up and measure each axis input at the ESP32: about 3.3 V with nothing connected. Unplug again.','']]],
+  ['Power up: the display should show the X, Z and spindle rows. Tap it, open View and choose RPM only until the axis encoders are fitted. Unplug again.','If it is blank, see Troubleshooting.']]],
+ ['Wire the level shifters and the PC817 module (nothing connected to the lathe)',[
+  ['Mount LS1, LS2 and, if you want the CNC Online signal, LS3 in the enclosure near the ESP32, with a screw terminal strip beside them for the shared points. Label the modules.','The Level shifters tab lists every pin. If you would rather mill the interface board, follow the Milled board tab instead of this section.'],
+  ['Supply pins first: each module\'s LV pin to the ESP32 3V3 pin, each GND pin to an ESP32 G pin, LS1 and LS2 HV pins to the 12 V supply +, LS3 HV to the ESP32 5V pin.','Put 3V3, 5V, ground and 12 V on the terminal strip, one wire each from the ESP32 and the supply, and fan out from there.'],
+  ['LV side to the GPIOs: LS1 LV1, LV2, LV3 to GPIO 4, 5, 6; LS2 LV1–LV4 to GPIO 7, 15, 16, 17; LS3 LV1 to GPIO 18.','Dupont female-to-male jumpers, module pin to header pin.'],
+  ['PC817 module input: IN+ to GPIO 2, IN− to G. Leave its output unconnected for now.',''],
+  ['Power up and measure each LV channel pin at the ESP32: about 3.3 V with nothing on the HV side. Unplug again.','A channel that reads 0 V means a missing LV, HV or GND connection on that module.']]],
  ['Knob',[
   ['Wire the pot: outer lugs to 3V3 and GND, and the center lug to GPIO 1.','If the speed rises the wrong way, swap the outer lugs.']]],
  ['Mount the X and Z encoders (machine off)',[
@@ -1271,21 +1297,21 @@ const HP_STEPS=[
   ['Write down the travel per encoder revolution: the screw lead, multiplied by any gearing between screw and encoder.','You enter it in Settings. Calibration fine-tunes it later.'],
   ['Turn each handwheel through its full travel and check nothing binds or rubs.','']]],
  ['Connect the cables (all power off)',[
-  ['X encoder to J1: brown +12V, blue 0V, black A, white B. Put the shield in the 0V/SH screw with the blue wire. Insulate the orange wire.','Leave the shield unconnected at the encoder end.'],
-  ['Z encoder to J2, the same way.',''],
-  ['Spindle encoder to J3: brown +12V, blue 0V, black A, white B, orange Z, shield in 0V/SH with the blue wire.','If it is already wired to the G540, move those wires to J3; J5 now feeds the G540.'],
-  ['Run a 4-core cable from J5 to the G540: T2 to terminal 2, T3 to terminal 3, T1 to terminal 1, T12 to terminal 12.','Use stranded wire in the G540 terminals, and do not fit wire plugs. The G540 tab shows every terminal.'],
-  ['Connect the 12 V supply to J4.','<b>Never use G540 terminal 11.</b> It can be up to 50 V.'],
+  ['X encoder: brown to the 12 V +, blue and the shield to the 12 V − (ground) on the terminal strip, black to LS2 HV1, white to LS2 HV2. Insulate the orange wire.','Leave the shield unconnected at the encoder end.'],
+  ['Z encoder the same way: black to LS2 HV3, white to LS2 HV4.',''],
+  ['Spindle encoder: brown to 12 V +, blue and shield to ground, black to LS1 HV1, white to LS1 HV2, orange to LS1 HV3.','If it is already wired to the G540, leave those wires in place and add a second wire from each G540 terminal to the LS1 pin: the encoder line is shared.'],
+  ['Run a 4-core cable from the shifter end to the G540: the A line (black) to terminal 2, B (white) to terminal 3, Z (orange) to terminal 1, ground to terminal 12.','Use stranded wire in the G540 terminals, and do not fit wire plugs. The G540 tab shows every terminal.'],
+  ['Connect the 12 V supply to the terminal strip: + to the 12 V point, − to ground.','<b>Never use G540 terminal 11.</b> It can be up to 50 V. Use a 12 V supply, not 24 V, so the HV side matches the G540 inputs.'],
   ['Route encoder cables away from motor and mains wiring.','']]],
  ['Optional: CNC Online signal',[
   ['Fit a DB25 breakout between the UC100 and the G540, with all power off.','Use a meter to confirm all 25 pins pass straight through.'],
-  ['Wire DB25 pin 16 to J6 pin 16, and DB25 pin 18 to J6 GND.','The DRO card then shows CNC Online while UCCNC is running.']]],
+  ['Wire DB25 pin 16 to LS3 HV1, and DB25 pin 18 to LS3 GND.','The DRO card then shows CNC Online while UCCNC is running.']]],
  ['Connect spindle control last (lathe unplugged)',[
   ['<b>Unplug the lathe from the wall</b> and wait for the controller to discharge.','The pot terminals may be at mains voltage when powered.'],
-  ['Identify HIGH, WIPER and LOW at the speed pot and label them. Measure the voltage between HIGH and LOW with the lathe powered, then unplug again.','It must be under 25 V, the rating of C1 (the PC817 itself takes 35 V). It is usually 5–12 V.'],
-  ['Disconnect the pot and wire HIGH, WIPER and LOW to J9.',''],
-  ['Check that J8 GPIO 2 is wired to the ESP32.','R13, U1, R14 and C1 are already on the board.'],
-  ['Check with a meter, with everything unplugged: there must be no continuity between ESP32 GND and any J9 terminal.','<b>If there is continuity, find it before going further.</b>'],
+  ['Identify HIGH, WIPER and LOW at the speed pot and label them. Measure the voltage between HIGH and LOW with the lathe powered, then unplug again.','It must be under 25 V, the rating of the 10 µF capacitor (the PC817 itself takes 35 V). It is usually 5–12 V.'],
+  ['Disconnect the pot. Wire HIGH to the PC817 module output C, WIPER to output E, and fit the 4.7 kΩ resistor and the 10 µF capacitor (+ lead at WIPER) between WIPER and LOW.','A small terminal strip on the lathe side keeps the two parts tidy.'],
+  ['Check that the PC817 module input is wired: IN+ to GPIO 2, IN− to G.',''],
+  ['Check with a meter, with everything unplugged: there must be no continuity between ESP32 GND and HIGH, WIPER or LOW.','<b>If there is continuity, find it before going further.</b>'],
   ['Insulate the controller wires and secure them so they cannot touch the low-voltage side.','']]],
  ['Finish, power up and calibrate',[
   ['Mount the board, ESP32 and display in the enclosure and add strain relief to every cable.','Keep the enclosure in reach of Wi-Fi, and away from chips and coolant.'],

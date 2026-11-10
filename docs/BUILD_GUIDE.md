@@ -1,8 +1,8 @@
 # ESP32-S3 Lathe Control: build guide
 
-A step-by-step guide to building the controller: flashing the ESP32-S3, wiring the touch display, milling and populating the interface board, mounting the encoders, connecting the G540 and the lathe, and calibrating. The same guide, with the interactive wiring diagram and tick-off checklist, is on the dashboard under **Help**; this copy lives with the code so it can be read without the ESP32.
+A step-by-step guide to building the controller: flashing the ESP32-S3, wiring the touch display, the level shifter modules and the PC817 module, mounting the encoders, connecting the G540 and the lathe, and calibrating. The same guide, with the interactive wiring diagram and tick-off checklist, is on the dashboard under **Help**; this copy lives with the code so it can be read without the ESP32.
 
-Versions this guide matches: firmware **1.6.0**, web page **1.20.x**, interface board **rev F**. The `CHANGELOG.md` lists what changed since.
+Versions this guide matches: firmware **1.7.0**, web page **1.21.x**. The `CHANGELOG.md` lists what changed since.
 
 ![The dashboard](img/dashboard.png)
 
@@ -12,7 +12,7 @@ Versions this guide matches: firmware **1.6.0**, web page **1.20.x**, interface 
 | --- | --- |
 | Live DRO for X and Z | A 600 P/R encoder on each slide, counted in hardware (2400 counts per rev) |
 | Spindle RPM and direction, closed-loop speed control | The 100 P/R spindle encoder, and a PC817 optocoupler driving the lathe's own speed-pot input |
-| 2.8 in touch display at the machine | X, Z and RPM in 13 mm digits; a tap opens a Settings menu (zero, diameter, flip, colours, calibrate, Info, reboot) |
+| 2.8 in touch display at the machine | RPM, X and Z in large digits, in the layout you choose; a tap opens a Settings menu |
 | Web dashboard over Wi-Fi | Settings, recording and playback with G-code export, threading presets, run hours, alarms, OTA updates |
 | CNC Online indicator (optional) | A tap on the G540 charge-pump line |
 
@@ -27,32 +27,24 @@ It never drives the steppers and never replaces the lathe's E-stop.
 | 1 | ESP32-S3 dev board, 44-pin | The controller | At least 8 MB flash and octal PSRAM (N8R8 or N16R8) |
 | 1 | USB charger, 5 V 1 A or more, and cable | Powers the ESP32 and the display | A noisy charger causes false counts |
 | 1 | 2.8 in ILI9341 SPI TFT, 320 × 240, **touch version** (XPT2046) | DRO, RPM and status at the machine | The common red-board module |
+| 3 | 4-channel bidirectional level shifter module (BSS138 type, sold as "IIC I2C logic level converter 3.3V-5V", pins pre-soldered) | LS1 spindle lines, LS2 X and Z encoders, LS3 charge pump | LS3 only with the optional CNC Online signal. Sold in packs of ten |
+| 1 | PC817 optocoupler module, 1 channel, 3.3–5 V input, **bare C and E output** | Isolates spindle control from the lathe | Not the VCC/OUT/GND output type. Or a PC817 and a 330 Ω resistor on perfboard |
 | 2 | Omron E6B2-CWZ6C encoder, **600 P/R** | X and Z position | Must be the CWZ6C (open collector), 6 mm shaft |
 | 1 | Omron E6B2-CWZ6C encoder, **100 P/R** | Spindle speed and direction | Skip if already fitted; turns 1:1 with the spindle |
-| 1 | 12 V DC supply, 0.5 A or more | Powers the three encoders | Any 5–24 V supply works |
+| 1 | **12 V** DC supply, 0.5 A or more | Powers the encoders and the shifters' HV side | 12 V, not 24: the HV side must match the G540's inputs |
 | 2 | Flexible shaft coupling, 6 mm to your shaft | Drives each axis encoder | Jaw or bellows type |
 | 2 | Encoder mounting bracket | Holds each axis encoder | Made to suit your lathe |
-| 4 | 2.2 kΩ resistor, 1/4 W | R1–R4, axis encoder pull-ups | |
-| 3 (4) | 2N3904 NPN transistor | Q1–Q3 spindle encoder inverters (Q4 for the optional charge pump) | |
-| 6 (8) | 10 kΩ resistor, 1/4 W | R5–R10 (R11, R12 for the charge pump) | |
-| 1 | PC817 optocoupler, DIP-4 | U1, isolates spindle control | |
-| 1 | 330 Ω resistor, 1/4 W | R13, PC817 LED current | About 6 mA from 3.3 V |
-| 1 | 4.7 kΩ resistor, 1/4 W | R14, speed signal filter | |
-| 1 | 10 µF electrolytic capacitor, 25 V | C1, speed signal filter | At least double your pot voltage |
-| 1 each | 100 µF and 0.1 µF capacitors | C2, C3, steady the 3.3 V rail | |
+| 1 | 4.7 kΩ resistor, 1/4 W | Speed signal filter at the PC817 output | |
+| 1 | 10 µF electrolytic capacitor, 25 V | Speed signal filter at the PC817 output | At least double your pot voltage |
 | 1 | 10 kΩ linear potentiometer and knob | Speed knob | Linear (B taper) |
-| 1 | Copper-clad FR-4, 150 × 100 mm, **double-sided** | The interface board, milled from the DXFs | Both sides are used |
-| 2 | 3 mm dowel pins, or two 1/8 in drill bits used shank down | Locate the board when flipping it | |
-| 35 ways | Screw terminal blocks, 5.08 mm pitch | J1–J9 | 2- and 3-way blocks slot together |
-| About 10 cm | Bare tinned copper wire, 0.5–0.6 mm | Via pins V1–V15 | Resistor leg offcuts work |
-| 1 set | Stranded hookup wire, 22–24 AWG | Board, ESP32 and display wiring | The G540 needs stranded 14–24 AWG |
-| 1 | 4-core cable, shielded if possible | Interface board to G540 terminals 1, 2, 3, 12 | |
+| 1 pack | Dupont jumper wires, female-to-female and female-to-male | Module pins to the ESP32 and the terminal strip | |
+| 1 | Screw terminal strip, about 12 ways, or lever connectors | Joins the encoder cables, the 12 V supply, the grounds and the module supply pins | |
+| 1 set | Stranded hookup wire, 22–24 AWG | ESP32, module and display wiring | The G540 needs stranded 14–24 AWG |
+| 1 | 4-core cable, shielded if possible | Spindle A, B, Z and ground to G540 terminals 2, 3, 1 and 12 | |
 
-### Optional and recommended
+Optional and recommended: DB25 male-female breakout for the CNC Online signal; shielded 5-core cable if the encoder leads need extending; a plastic enclosure with a window for the display; 22-way header sockets so the ESP32 can be swapped; encoder guards; heat-shrink, ferrules, cable ties and labels.
 
-DB25 male-female breakout (plus one 2N3904 and two 10 kΩ) for the CNC Online signal; shielded 5-core cable if the encoder leads need extending; a plastic enclosure with a window for the display; 22-way header sockets so the ESP32 can be swapped; encoder guards; heat-shrink, ferrules, cable ties and labels.
-
-Tools: soldering iron, multimeter, wire strippers, small flat screwdriver, and a dial indicator for calibrating the axes. A CNC router with a 30° V-bit or a 0.3–0.5 mm end mill, a 0.8 mm and a 1.3 mm drill, and a 1.5 mm or smaller end mill for the board.
+Tools: soldering iron (only for the two filter parts, if you don't use a terminal strip), multimeter, wire strippers, small flat screwdriver, and a dial indicator for calibrating the axes.
 
 ## 2. Flash the ESP32 and prove it on the bench
 
@@ -87,79 +79,55 @@ Wire the module straight to the ESP32-S3 DevKitC-1. Keep the wires under about 2
 
 Power up. You should see the lathe picture with the firmware version for two seconds, then the DRO. The **first tap** on the screen starts the touch calibration: press the three crosses as they appear, firmly, with a fingernail or the stylus. After that, a tap anywhere opens the Settings menu.
 
-![The four display screens](img/display_screens.png)
+![The display screens](img/display_screens.png)
 
-If the colours look wrong (the workpiece in the power-up picture should be brass yellow; in the menu the squares marked R, G and B should be red, green and blue), turn on **Swap red / blue** in the menu. Everything set in the menu is saved. Unplug again.
+In the menu, **View** chooses what fills the screen: Everything, **RPM only**, X only, Z only, or X and Z. Pick RPM only until the axis encoders are fitted, so the screen does not show two axes at zero. If the colours look wrong (the workpiece in the power-up picture should be brass yellow; in the menu the squares marked R, G and B should be red, green and blue), turn on **Swap red / blue**. Everything set in the menu is saved. Unplug again.
 
-## 4. Mill the interface board
+## 4. The level shifter modules
 
-![Interface board, component side](img/board_preview.png)
+![Level shifters in Help](img/help_shifters.png)
 
-The board is two-sided, 144 × 94 mm, milled from a 150 × 100 blank with no plated holes: via pins (bare wire soldered both sides) join the two layers. The files are written by `hardware/make_pcb.py` and also served by the ESP32 under Help → Interface board. Use both sides from the **same revision**.
+Every encoder and G540 line reaches the ESP32 through a 4-channel bidirectional level shifter module. The encoders have open-collector outputs (they pull a line to 0 V but never drive it high), so every line needs a pull-up, and the module has 10 kΩ pull-ups built in on both sides. With the 12 V encoder supply on the **HV** side, the cables carry a 0–12 V swing that shrugs off noise, and the spindle lines sit at the same 12 V the G540's own inputs pull them to. The **LV** side, fed from the ESP32's 3V3 pin, delivers 3.3 V to the GPIOs. The charge-pump line is a 5 V output from the UC100, so its module gets 5 V on HV.
 
-The mill files (`board_revF_bottom.dxf`, `board_revF_top.dxf`, and the same as `.svg`) have one layer per machining operation:
+Each module has, on one side, `HV HV1 HV2 GND HV3 HV4` (or similar) and on the other `LV LV1 LV2 GND LV3 LV4`; read the labels on yours.
 
-| Layer | Operation |
-| --- | --- |
-| `ISO_CENTER` | Cutter centre lines for a 0.5 mm cutter: engrave along them with **no offset**, about 0.1 mm deep. A 30° V-bit or a 0.3–0.5 mm end mill |
-| `CLEAR_POCKET` | Pocket out completely, 0.1–0.15 mm deep, with a 0.8–1.6 mm end mill. They run 1 mm past the board edge |
-| `COPPER_REF` | The copper that stays. Reference only: never cut it |
-| `DRILL_0P8`, `DRILL_1P3` | Holes at true size (0.8 mm: resistors, transistors, U1, capacitors, vias; 1.3 mm: screw terminals) |
-| `ALIGN_3P0` | The two 3 mm alignment holes |
-| `SLOT` | The 2 mm isolation slot under U1: a through pocket with a 1.5 mm or smaller end mill |
-| `OUTLINE` | The board edge, a plain rectangle: cut last |
-
-![Side 1 as the CAM sees it: grey groove, light grey pockets, black copper](img/board_bottom_cam.png)
-
-Steps:
-
-1. **Set up.** Fresh, flat double-sided blank taped to the spoilboard. Work zero 3 mm in from the blank's corner; keep the same X and Y zero for both sides.
-2. **Side 1, alignment holes.** Load `…_bottom.dxf`. Drill the two `ALIGN_3P0` holes through the blank and 5 mm into the spoilboard. They sit on the board's vertical centre line, one near the bottom edge and one above the middle, so the board only fits the pins one way round.
-3. **Side 1, copper.** Engrave `ISO_CENTER`, pocket `CLEAR_POCKET`.
-4. **Side 1, drill.** `DRILL_0P8` and `DRILL_1P3`.
-5. **Flip.** Push 3 mm pins into the spoilboard holes, standing about 1 mm proud. Turn the board over **left to right** (top edge stays at the top) onto the pins, tape it, re-probe Z.
-6. **Side 2, copper.** Load `…_top.dxf`. Engrave `ISO_CENTER`, pocket `CLEAR_POCKET`. Don't drill again. Check the rings are centred on the holes.
-7. **Side 2, slot then outline.** Pocket `SLOT` right through, then cut `OUTLINE` on the outside of the line, with tabs.
-8. Deburr, scrub both sides, and check with a meter that no two neighbouring traces touch, and that no lead hole touches the top ground copper.
-
-![Side 2 as the CAM sees it](img/board_top_cam.png)
-
-Why the pockets matter: an isolation groove only separates shapes. Copper that belongs to no shape (the 8 mm zone round the lathe side, the edge margin) would stay as loose islands that can bridge the isolated lathe side to the ESP32 side. Always pocket, especially the top right corner.
-
-## 5. Populate the board
-
-![Board and its connections](img/board_assembly.png)
-
-1. Check the bare board with a meter on both sides: no continuity between neighbouring traces, none between the 3V3 strips, the +12V traces and the ground copper; on the top, no lead hole touching the ground copper around it. Clear any whisker with a knife now.
-2. Fit the **15 via pins V1–V15** first: bare wire through each gold-ringed hole, soldered on both sides, trimmed flush. V1–V3 carry +12V and V4–V7 carry 3V3 to the two top traces; V8–V15 join top and bottom ground. Then check +12V is continuous from J4 to J1 and J2, and 3V3 from J8 to all four 3V3 strips.
-3. Resistors. R1–R4 (2.2 kΩ) and R6, R8, R10, R12 (10 kΩ) stand on end with the body over the circled pad.
-4. Q1–Q4 (2N3904) with the flat face matching the outline; U1 with its pin 1 dot at the marked corner. Q4, R11 and R12 are only for the optional charge pump.
-5. C1 and C2 with the + lead on the pad marked +; then C3; screw terminals last.
-6. Meter again: no short between 3V3, +12V and GND.
-7. Wire J7 to the ESP32 (GPIO 4, 5, 6, 18) and J8 (GPIO 2, G, GPIO 7, 15, 16, 3V3, 17). Pin names are printed beside each screw.
-8. Power up and measure each axis input at the ESP32: about 3.3 V with nothing connected. Unplug again.
-
-Where each part goes:
-
-| Ref | Value | From | To |
+| Module | Pin | Cable side (HV) | ESP32 side (LV) |
 | --- | --- | --- | --- |
-| R1–R4 | 2.2 kΩ | J1 A / J1 B / J2 A / J2 B (encoder black and white, on to GPIO 7, 15, 16, 17) | 3V3 rail |
-| R5, R7, R9 | 10 kΩ | J3 A / B / Z (also J5 T2 / T3 / T1) | Q1 / Q2 / Q3 base |
-| R6, R8, R10 | 10 kΩ | Q1 / Q2 / Q3 collector (on to GPIO 4 / 5 / 6) | 3V3 rail |
-| R11, R12 (optional) | 10 kΩ | J6 pin 16 → Q4 base; Q4 collector → GPIO 18 | |
-| Q1–Q4 | 2N3904 | Emitter to the GND rail | |
-| R13 | 330 Ω | J8 GPIO 2 | U1 pin 1 |
-| U1 | PC817 | Pin 2 to ground | Pin 4 to J9 HIGH, pin 3 to J9 WIPER |
-| R14, C1 | 4.7 kΩ, 10 µF | J9 WIPER | J9 LOW |
-| C2, C3 | 100 µF, 0.1 µF | 3V3 rail | GND rail |
-| J1, J2 | 4-way | X / Z encoder: +12V, A, 0V/SH, B | |
-| J3 | 5-way | Spindle encoder: +12V, 0V/SH, A, B, Z | |
-| J4 | 2-way | 12 V supply | |
-| J5 | 4-way | To the G540: T2, T3, T1, T12 | |
-| J6 (optional) | 2-way | DB25 pin 16, GND | |
-| J7 | 4-way | To the ESP32: GPIO 4, 5, 6, 18 | |
-| J8 | 7-way | To the ESP32: GPIO 2, GND, GPIO 7, 15, 16, 3V3, 17 | |
-| J9 | 3-way | To the lathe: HIGH, WIPER, LOW | **Isolated.** Never joined to any other ground |
+| **LS1** spindle | HV / LV | 12 V supply + | 3V3 pin |
+| | GND (either side) | 12 V supply −, encoder blue and shield, G540 terminal 12 | ESP32 G |
+| | HV1 → LV1 | Spindle encoder **black** (A); the same wire also goes to G540 terminal 2 | GPIO 4 |
+| | HV2 → LV2 | Spindle encoder **white** (B); also G540 terminal 3 | GPIO 5 |
+| | HV3 → LV3 | Spindle encoder **orange** (Z); also G540 terminal 1 | GPIO 6 |
+| **LS2** X and Z | HV / LV | 12 V supply + | 3V3 pin |
+| | GND | 12 V supply −, encoder blue wires and shields | ESP32 G |
+| | HV1 → LV1 | X encoder black (A) | GPIO 7 |
+| | HV2 → LV2 | X encoder white (B) | GPIO 15 |
+| | HV3 → LV3 | Z encoder black (A) | GPIO 16 |
+| | HV4 → LV4 | Z encoder white (B) | GPIO 17 |
+| **LS3** charge pump (optional) | HV / LV | ESP32 **5V** pin | 3V3 pin |
+| | GND | DB25 pin 18 | ESP32 G |
+| | HV1 → LV1 | DB25 pin 16 | GPIO 18 |
+
+Steps (nothing connected to the lathe):
+
+1. Mount LS1, LS2 and, if wanted, LS3 in the enclosure near the ESP32, with a screw terminal strip beside them for the shared points (3V3, 5V, ground, 12 V). Label the modules.
+2. Supply pins first: each LV pin to 3V3, each GND pin to G, LS1 and LS2 HV to 12 V +, LS3 HV to 5V.
+3. LV side to the GPIOs: LS1 LV1–LV3 → GPIO 4, 5, 6; LS2 LV1–LV4 → GPIO 7, 15, 16, 17; LS3 LV1 → GPIO 18.
+4. Power up and measure each LV channel pin at the ESP32: about 3.3 V with nothing on the HV side. A channel at 0 V means a missing LV, HV or GND connection on that module. Unplug again.
+
+## 5. Spindle control: the PC817 module
+
+A shifter has no isolation, and the lathe's speed-pot circuit may sit at mains potential, so the optocoupler stays. Use a 1-channel PC817 module with a 3.3–5 V input (the LED resistor is on the board) whose output terminals are the bare transistor, marked **C** and **E** (or OUT+ / OUT−). Avoid the VCC/OUT/GND output type, which needs a supply on the lathe side.
+
+| Module pin | Connects to |
+| --- | --- |
+| IN+ (VCC or signal) | GPIO 2 |
+| IN− (GND) | ESP32 G |
+| Output C (collector, OUT+) | Lathe pot **HIGH** |
+| Output E (emitter, OUT−) | Lathe pot **WIPER**; the 4.7 kΩ resistor and the 10 µF capacitor's + lead also start here |
+| — | Lathe pot **LOW**: the other end of the 4.7 kΩ and the capacitor's − lead |
+
+Wire the input now (IN+ to GPIO 2, IN− to G) and leave the output for section 9. Everything on the output side belongs to the lathe: keep it inside the controller enclosure, insulated, and never let it touch ESP32 ground. Mount the module so the gap between its input and output pins stays clear and dry.
 
 ## 6. The speed knob
 
@@ -177,29 +145,27 @@ Outer lugs to 3V3 and GND, centre lug to GPIO 1. If the speed rises the wrong wa
 
 ![The wiring diagram in Help; click a wire there to highlight it](img/help_wiring.png)
 
-1. X encoder to J1: brown +12V, blue 0V, black A, white B. Shield into the 0V/SH screw with the blue wire; insulate the orange wire; leave the shield unconnected at the encoder end.
-2. Z encoder to J2, the same way.
-3. Spindle encoder to J3: brown, blue, black A, white B, orange Z, shield with the blue wire. If it was wired to the G540, move those wires to J3: J5 now feeds the G540.
-4. 4-core cable from J5 to the G540: T2 → terminal 2, T3 → 3, T1 → 1, T12 → 12. Stranded wire, no wire plugs.
-5. 12 V supply to J4. **Never use G540 terminal 11**: it can be up to 50 V.
+1. X encoder: brown to 12 V +, blue and the shield to the 12 V − (ground) on the terminal strip, black to LS2 HV1, white to LS2 HV2. Insulate the orange wire; leave the shield unconnected at the encoder end.
+2. Z encoder the same way: black to LS2 HV3, white to LS2 HV4.
+3. Spindle encoder: brown to 12 V +, blue and shield to ground, black to LS1 HV1, white to LS1 HV2, orange to LS1 HV3. If it is already wired to the G540, leave those wires and add a second wire from each G540 terminal to the LS1 pin: the line is shared.
+4. 4-core cable from the shifter end to the G540: A (black) → terminal 2, B (white) → 3, Z (orange) → 1, ground → 12. Stranded wire, no wire plugs.
+5. 12 V supply to the terminal strip: + to the 12 V point, − to ground. **Never use G540 terminal 11**: it can be up to 50 V.
 6. Route encoder cables away from motor and mains wiring.
-7. Optional CNC Online: a DB25 breakout between the UC100 and the G540; pin 16 → J6 pin 16, pin 18 → J6 GND.
+7. Optional CNC Online: a DB25 breakout between the UC100 and the G540; pin 16 → LS3 HV1, pin 18 → LS3 GND.
 
 ## 9. Spindle control, last (lathe unplugged)
 
-The lathe's speed-pot circuit may sit at mains potential. The PC817, the 8 mm bare zone and the slot under U1 are the only things between it and the low-voltage side.
-
 1. **Unplug the lathe from the wall** and wait for the controller to discharge.
-2. Identify HIGH, WIPER and LOW at the speed pot and label them. With the lathe powered, measure between HIGH and LOW (DC and AC) and between each of them and mains earth, then unplug again. HIGH to LOW must be **under 25 V**, C1's rating (it is usually 5–12 V). If either pin reads anything against earth, the whole circuit floats at mains potential: treat J9, R14, C1 and the lathe side of U1 as live, keep them inside the controller enclosure, and never let a wire or tool bridge the gap. If HIGH–LOW is over 25 V, or you cannot measure it, do not connect the board.
-3. Disconnect the pot and wire HIGH, WIPER and LOW to J9.
-4. Check J8 GPIO 2 is wired to the ESP32.
-5. With everything unplugged: **no continuity** between ESP32 GND and any J9 terminal. If there is, find it before going on.
+2. Identify HIGH, WIPER and LOW at the speed pot and label them. With the lathe powered, measure between HIGH and LOW (DC and AC) and between each of them and mains earth, then unplug again. HIGH to LOW must be **under 25 V**, the capacitor's rating (it is usually 5–12 V). If either pin reads anything against earth, the whole circuit floats at mains potential: treat the PC817 output side, the two filter parts and the pot wires as live, keep them inside the controller enclosure, and never let a wire or tool bridge to the ESP32 side. If HIGH–LOW is over 25 V, or you cannot measure it, do not connect.
+3. Disconnect the pot. Wire HIGH to the module's output C, WIPER to output E, and the 4.7 kΩ and 10 µF (+ at WIPER) between WIPER and LOW. A small terminal strip on the lathe side keeps the two parts tidy.
+4. Check the module input is wired (IN+ to GPIO 2, IN− to G).
+5. With everything unplugged: **no continuity** between ESP32 GND and HIGH, WIPER or LOW. If there is, find it before going on.
 6. Insulate and secure the controller wires so they cannot touch the low-voltage side.
 
 ## 10. Power up and calibrate
 
-1. Mount the board, ESP32 and display in the enclosure; strain-relieve every cable. Keep the enclosure in Wi-Fi reach and away from chips and coolant.
-2. Turn on the encoder supply, the G540 and the PC, then the ESP32. Leave the lathe unplugged. Check UCCNC still sees the spindle inputs.
+1. Mount everything in the enclosure; strain-relieve every cable. Keep the enclosure in Wi-Fi reach and away from chips and coolant.
+2. Turn on the 12 V supply, the G540 and the PC, then the ESP32. Leave the lathe unplugged. Check UCCNC still sees the spindle inputs.
 3. In **Settings** enter: spindle PPR 100; X and Z P/R 600; travel per encoder revolution for each axis (inches; X is radial); X shows diameter; Max RPM; KP 0.0004, KI 0.0012; soft limits. If an axis counts backwards, tick **Invert count** for it.
 4. Turn each handwheel and check the DRO follows. Calibrate X and Z with a dial indicator (method on Help → Setup and checks).
 5. Set **Max RPM to 500** and the target to 0 for first tests.
@@ -208,8 +174,16 @@ The lathe's speed-pot circuit may sit at mains potential. The PC817, the 8 mm ba
 
 ## 11. Day to day
 
-- The display's **Settings menu** (tap anywhere): Zero X, Zero Z, X shows diameter/radius, screen normal/upside down, swap red/blue, calibrate touch, Info (firmware, Wi-Fi, address, spindle run hours, powered-on hours), Close, Reboot. It closes itself after 30 s.
+- The display's **Settings menu** (tap anywhere): Zero X, Zero Z, X shows diameter/radius, screen normal/upside down, swap red/blue, calibrate touch, View, Info (firmware, Wi-Fi, address, spindle run hours, powered-on hours), Close, Reboot. It closes itself after 30 s.
 - Spindle hours count every second the spindle turns and are saved every minute; the web page's Run hours card shows the same figure.
 - Firmware updates: upload `firmware.bin` in the Firmware window. Page updates: **Upload Filesystem Image** from PlatformIO (this erases saved recordings).
 
 ![Build steps with tick boxes, in Help](img/help_steps.png)
+
+## Appendix: the milled interface board
+
+Before the shifter modules, the interface was a two-sided milled board (rev F) carrying 2N3904 inverters, pull-ups, the PC817 stage and screw terminals for every cable. It still works and the files are in `hardware/` and under Help → Milled board (alt.), with the milling steps and the one-operation-per-layer DXFs (`ISO_CENTER`, `CLEAR_POCKET`, `COPPER_REF`, `DRILL_0P8`, `DRILL_1P3`, `ALIGN_3P0`, `SLOT`, `OUTLINE`).
+
+![Interface board, component side](img/board_preview.png)
+
+![Side 1 as the CAM sees it](img/board_bottom_cam.png)

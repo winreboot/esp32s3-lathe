@@ -22,17 +22,17 @@ Builds with Arduino-ESP32 core 2.0.x (PlatformIO `espressif32 @ 6.9.0`) and the 
 It never drives the steppers and never replaces the lathe's E-stop.
 
 ## Wiring (ESP32-S3-DevKitC-1)
-The full build guide, with diagrams, is under **Help** on the dashboard. Taps from the G540 go through a 2N3904 inverter (10k base, 10k collector pull-up to 3V3, emitter to GND). The X and Z encoders are open collector, so they connect directly with a 2.2k pull-up to 3V3 on each line. The ESP32 only ever sees 3.3 V.
+The full build guide, with diagrams, is under **Help** on the dashboard. Every encoder and G540 line reaches the ESP32 through a ready-made 4-channel BSS138 level shifter module: LS1 for the spindle A/B/Z taps (shared with the G540 inputs), LS2 for the X and Z encoders, LS3 for the optional charge pump. LS1 and LS2 have the 12 V encoder supply on their HV side, so the cables carry a 0–12 V swing and the module's own 10 kΩ pull-ups do the pulling; LS3 has 5 V. The LV sides are fed from 3V3, so the ESP32 only ever sees 3.3 V. Spindle control stays isolated through a 1-channel PC817 module. The milled two-sided interface board in `hardware/` does the same job and remains an alternative.
 
 | ESP32 pin | Signal | From |
 | --- | --- | --- |
-| GPIO 4 / 5 / 6 | Spindle encoder A / B / Z (100 P/R) | G540 terminals T2 / T3 / T1 (inverters) |
-| GPIO 7 / 15 | X encoder A / B (600 P/R) | Encoder black / white, 2.2k pull-up to 3V3 each |
-| GPIO 16 / 17 | Z encoder A / B (600 P/R) | Encoder black / white, 2.2k pull-up to 3V3 each |
-| GPIO 18 | Charge pump (optional) | G540 DB25 pin 16 (inverter) |
-| — | Encoder power | All three encoders from a 12 V supply (5–24 V). Blue and supply − to ESP32 GND and G540 T12. Never from G540 T11. Axis encoder orange (index) unused. |
+| GPIO 4 / 5 / 6 | Spindle encoder A / B / Z (100 P/R) | LS1 LV1 / LV2 / LV3; HV1–HV3 on the encoder black / white / orange wires, which also go to G540 terminals 2 / 3 / 1. LS1 HV = 12 V, LV = 3V3 |
+| GPIO 7 / 15 | X encoder A / B (600 P/R) | LS2 LV1 / LV2; HV1 / HV2 on the encoder black / white. LS2 HV = 12 V, LV = 3V3 |
+| GPIO 16 / 17 | Z encoder A / B (600 P/R) | LS2 LV3 / LV4; HV3 / HV4 on the encoder black / white |
+| GPIO 18 | Charge pump (optional) | LS3 LV1; HV1 on G540 DB25 pin 16, DB25 pin 18 to GND. LS3 HV = 5V pin |
+| — | Encoder power | All three encoders from a **12 V** supply (the HV side must match the G540's 12 V inputs). Brown to 12 V +; blue, shields and supply − to ESP32 GND and G540 T12. Never from G540 T11. Axis encoder orange (index) unused. |
 | GPIO 1 | Speed knob wiper | 10k pot between 3V3 and GND |
-| GPIO 2 | Spindle PWM | 330 Ω → PC817 pin 1; pin 2 → GND. Transistor side on the lathe controller's pot terminals (see `esp32/README.md` in the project: HIGH ← collector, WIPER ← emitter node, 4.7k + 10 µF to LOW) |
+| GPIO 2 | Spindle PWM | PC817 module IN+ (IN− to GND). Module output C → lathe pot HIGH, E → WIPER, with 4.7k and 10 µF from WIPER to LOW. The lathe side is isolated: never joined to any other ground |
 | GPIO 8 / 9 / 10 / 11 / 12 | Display RESET / DC / CS / SDI (MOSI) / SCK | 2.8" ILI9341 SPI TFT with XPT2046 touch. VCC to 3V3 if the module's J1 jumper is bridged, 5V if open; LED to 3V3; SDO unconnected |
 | GPIO 12 / 11 / 13 / 14 | Touch T_CLK / T_DIN / T_DO / T_CS | T_CLK and T_DIN share the display's SCK and SDI pins. T_IRQ unconnected. A tap on the screen opens the Settings menu (zero X/Z, diameter, flip, colour swap, calibrate, reboot) |
 | 5V / GND | Power | USB charger. GND common with encoder 0 V and G540 T12. **Never** with the controller board. |

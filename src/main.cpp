@@ -59,6 +59,7 @@ struct Settings {
   bool  blueLow = true;                // blue LED lights when its pin is LOW
   bool  dispFlip = false;              // turn the display picture upside down, for mounting
   bool  dispSwapRb = false;            // swap red and blue: some panels wire the colours the other way round
+  uint8_t dispView = 0;                // what the screen shows: 0 everything, 1 RPM only, 2 X only, 3 Z only, 4 X and Z
   int16_t tcal[6] = {0, 0, 0, 0, 0, 0}; // touch calibration: raw readings at three screen points; all zero = not calibrated
 } S;
 Preferences prefs;
@@ -83,6 +84,7 @@ void loadSettings() {
   S.blueLow = prefs.getBool("blow", S.blueLow);
   S.dispFlip = prefs.getBool("dflip", S.dispFlip);
   S.dispSwapRb = prefs.getBool("dswap", S.dispSwapRb);
+  S.dispView = prefs.getUChar("dview", S.dispView); if (S.dispView > 4) S.dispView = 0;
   prefs.getBytes("tcal", S.tcal, sizeof S.tcal);
   prefs.end();
 }
@@ -98,7 +100,7 @@ void saveSettings() {
   prefs.putFloat("xmin", S.xMin); prefs.putFloat("xmax", S.xMax); prefs.putFloat("zmin", S.zMin); prefs.putFloat("zmax", S.zMax);
   prefs.putBool("knob", S.knobEnabled); prefs.putString("mani", S.manifest);
   prefs.putInt("lrgb", S.ledRgb); prefs.putInt("lblue", S.ledBlue); prefs.putBool("blow", S.blueLow); prefs.putBool("dflip", S.dispFlip);
-  prefs.putBool("dswap", S.dispSwapRb); prefs.putBytes("tcal", S.tcal, sizeof S.tcal);
+  prefs.putBool("dswap", S.dispSwapRb); prefs.putUChar("dview", S.dispView); prefs.putBytes("tcal", S.tcal, sizeof S.tcal);
   prefs.end();
 }
 
@@ -469,18 +471,21 @@ void calibrateTouch(bool flip) {
 // ---------------- on-screen menu ----------------
 // A tap anywhere on the DRO opens it. Buttons are finger sized; nothing here needs the web page.
 struct Btn { int x, y, w, h; };
-const Btn MB[9] = {{6, 6, 152, 52}, {162, 6, 152, 52}, {6, 64, 152, 52}, {162, 64, 152, 52},
-                   {6, 122, 152, 52}, {162, 122, 152, 52}, {6, 180, 100, 52}, {110, 180, 100, 52}, {214, 180, 100, 52}};
-enum { B_ZERO_X, B_ZERO_Z, B_XDIA, B_FLIP, B_SWAP, B_CAL, B_INFO, B_CLOSE, B_REBOOT };
+const Btn MB[10] = {{6, 6, 152, 52}, {162, 6, 152, 52}, {6, 64, 152, 52}, {162, 64, 152, 52},
+                    {6, 122, 152, 52}, {162, 122, 152, 52}, {6, 180, 74, 52}, {84, 180, 74, 52}, {162, 180, 74, 52}, {240, 180, 74, 52}};
+enum { B_ZERO_X, B_ZERO_Z, B_XDIA, B_FLIP, B_SWAP, B_CAL, B_VIEW, B_INFO, B_CLOSE, B_REBOOT };
 const Btn YES_BTN = {6, 150, 152, 48}, NO_BTN = {162, 150, 152, 48}, BACK_BTN = {6, 186, 308, 48};
+// View screen: what fills the DRO. Five layouts and Back.
+const Btn VB[6] = {{6, 6, 152, 52}, {162, 6, 152, 52}, {6, 64, 152, 52}, {162, 64, 152, 52}, {6, 122, 152, 52}, {162, 122, 152, 52}};
+const char *VIEW_NAME[5] = {"Everything", "RPM only", "X only", "Z only", "X and Z"};
 bool hit(const Btn &b, int x, int y) { return x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h; }
-void drawBtn(const Btn &b, const char *l1, const char *l2, uint32_t fill = 0x1e2a44, uint32_t txt = 0xe6edf7) {
+void drawBtn(const Btn &b, const char *l1, const char *l2, uint32_t fill = 0x1e2a44, uint32_t txt = 0xe6edf7, bool small = false) {
   g->fillRoundRect(b.x, b.y, b.w, b.h, 8, fill);
   g->setTextDatum(middle_center); g->setTextColor(txt);
   if (l2) {
     g->setFont(&fonts::Font2); g->drawString(l1, b.x + b.w / 2, b.y + b.h / 2 - 9);
     g->setTextColor(0xfbbf24); g->drawString(l2, b.x + b.w / 2, b.y + b.h / 2 + 9);
-  } else { g->setFont(&fonts::Font4); g->drawString(l1, b.x + b.w / 2, b.y + b.h / 2); }
+  } else { g->setFont(small ? (const lgfx::IFont *)&fonts::Font2 : (const lgfx::IFont *)&fonts::Font4); g->drawString(l1, b.x + b.w / 2, b.y + b.h / 2); }
 }
 void drawMenu(const DispSnap &s) {
   g->fillScreen(0x0a1020);
@@ -498,9 +503,18 @@ void drawMenu(const DispSnap &s) {
     g->fillRoundRect(bx, by, 14, 14, 3, rgb[i]); g->setTextColor(0xffffff); g->drawString(ltr[i], bx + 7, by + 7);
   }
   drawBtn(MB[B_CAL], "Calibrate touch", nullptr);
-  drawBtn(MB[B_INFO], "Info", nullptr);
-  drawBtn(MB[B_CLOSE], "Close", nullptr, 0x1e2a44);
-  drawBtn(MB[B_REBOOT], "Reboot", nullptr, 0x7f1d1d);
+  drawBtn(MB[B_VIEW], "View", nullptr, 0x1e2a44, 0xe6edf7, true);
+  drawBtn(MB[B_INFO], "Info", nullptr, 0x1e2a44, 0xe6edf7, true);
+  drawBtn(MB[B_CLOSE], "Close", nullptr, 0x1e2a44, 0xe6edf7, true);
+  drawBtn(MB[B_REBOOT], "Reboot", nullptr, 0x7f1d1d, 0xe6edf7, true);
+}
+void drawViewMenu(const DispSnap &s) {
+  g->fillScreen(0x0a1020);
+  for (int i = 0; i < 5; i++) drawBtn(VB[i], VIEW_NAME[i], nullptr, i == S.dispView ? 0x0c4a6e : 0x1e2a44);
+  drawBtn(VB[5], "Back", nullptr);
+  g->setFont(&fonts::Font2); g->setTextDatum(top_left); g->setTextColor(0x8fa1c2);
+  g->drawString("Pick what fills the screen. Tap it to switch.", 8, 188);
+  g->drawString("No axis encoders fitted yet? Choose RPM only.", 8, 208);
 }
 void drawConfirmReboot(const DispSnap &s) {
   g->fillScreen(0x0a1020);
@@ -527,6 +541,82 @@ void drawInfo(const DispSnap &s) {
   snprintf(v, sizeof v, "%lu h %02lu min", (unsigned long)(s.spinS / 3600), (unsigned long)(s.spinS % 3600 / 60)); line("Spindle run", v);
   snprintf(v, sizeof v, "%lu h %02lu min", (unsigned long)(s.powS / 3600), (unsigned long)(s.powS % 3600 / 60)); line("Powered on", v);
   drawBtn(BACK_BTN, "Back", nullptr);
+}
+// ---------------- single-value views ----------------
+// A number in the seven-segment font, as large as maxW and maxScale allow, centred on (cx, cy).
+void bigCentered(const char *txt, int cx, int cy, int maxW, float maxScale, uint32_t col) {
+  g->setFont(&fonts::Font7); g->setTextSize(1);
+  float sc = min(maxScale, (float)maxW / max(1, (int)g->textWidth(txt)));
+  g->setTextSize(sc); g->setTextColor(col); g->setTextDatum(middle_center); g->drawString(txt, cx, cy); g->setTextSize(1);
+}
+void menuMark(int x, int y) { for (int i = 0; i < 3; i++) g->fillRect(x, y + 4 * i, 14, 2, 0x8fa1c2); }
+const char *toolText(const DispSnap &s) { const char *t = strstr(s.tool, " + "); return t ? t + 3 : (s.tool[0] ? s.tool : "No tool"); }
+// Bottom line of the single-value views: CNC and Wi-Fi state.
+void footerStatus(const DispSnap &s, int y) {
+  char f[64]; snprintf(f, sizeof f, "%s    %s", s.cnc ? "CNC online" : "CNC offline", s.up ? s.ip : (s.ap ? "AP 192.168.4.1" : "no Wi-Fi"));
+  g->setFont(&fonts::Font2); g->setTextDatum(top_left); g->setTextColor(0x8fa1c2); g->drawString(f, 8, y);
+}
+// RPM only: the speed in 120 px digits, with direction, target, speed bar, tool or alarm, encoder state.
+void drawRpmView(const DispSnap &s) {
+  g->fillScreen(0x0a1020);
+  uint32_t col = s.enc || s.rpm < 1 ? 0x22c55e : 0xf59e0b;
+  g->setFont(&fonts::Font4); g->setTextDatum(top_left); g->setTextColor(0x22c55e); g->drawString("SPINDLE", 8, 6);
+  g->setTextColor(0xe6edf7); g->drawString(s.fwd ? "FWD" : "REV", 136, 6);
+  char tg[16]; snprintf(tg, sizeof tg, "SET %d", s.target); g->setTextDatum(top_right); g->drawString(tg, 312, 6);
+  char r[8]; snprintf(r, sizeof r, "%d", (int)(s.rpm + 0.5f));
+  bigCentered(r, 160, 96, 300, 2.5f, col);
+  int mx = s.maxRpm > 0 ? s.maxRpm : 2000;
+  g->fillRoundRect(8, 164, 304, 14, 4, 0x1e2a44);
+  g->fillRoundRect(8, 164, constrain((int)(304 * s.rpm / mx), 0, 304), 14, 4, col);
+  if (s.target > 0) { int tx = 8 + constrain(304 * s.target / mx, 0, 304); g->fillRect(tx - 1, 159, 3, 24, 0xe6edf7); }
+  g->setFont(&fonts::Font2); g->setTextDatum(top_left); g->setClipRect(8, 190, 196, 22);
+  if (s.alarms) { g->fillRoundRect(8, 190, 196, 22, 4, 0xb45309); g->setTextColor(0xffffff); g->drawString(s.alarm, 12, 193); }
+  else { g->setTextColor(0xfbbf24); g->drawString(toolText(s), 8, 193); }
+  g->clearClipRect();
+  g->setTextDatum(top_right); g->setTextColor(s.enc ? 0x22c55e : 0x8fa1c2); g->drawString(s.enc ? "Encoder OK" : "Stopped", 312, 193);
+  footerStatus(s, 216); menuMark(300, 222);
+}
+// X only or Z only: one axis in digits up to 120 px tall, the other axis and the spindle small underneath.
+void drawAxisView(const DispSnap &s, bool isX) {
+  g->fillScreen(0x0a1020);
+  g->setFont(&fonts::Font4); g->setTextDatum(top_left); g->setTextColor(0x38bdf8); g->drawString(isX ? "X" : "Z", 8, 6);
+  g->setTextColor(0xe6edf7); g->drawString(isX ? (s.xDia ? "DIAMETER" : "RADIUS") : "LONGITUDINAL", 40, 6);
+  g->setTextDatum(top_right); g->setTextColor(0x8fa1c2); g->drawString("inch", 312, 6);
+  char b[16]; snprintf(b, sizeof b, "%.4f", isX ? s.x : s.z);
+  bigCentered(b, 160, 96, 304, 2.5f, 0x38bdf8);
+  g->setFont(&fonts::Font4); g->setTextDatum(top_left); g->setTextColor(0x8fa1c2);
+  char o[32]; snprintf(o, sizeof o, "%s %.4f", isX ? "Z" : "X", isX ? s.z : s.x); g->drawString(o, 8, 166);
+  snprintf(o, sizeof o, "S %d %s", (int)(s.rpm + 0.5f), s.fwd ? "FWD" : "REV"); g->setTextDatum(top_right); g->drawString(o, 312, 166);
+  g->setFont(&fonts::Font2); g->setTextDatum(top_left); g->setClipRect(8, 194, 304, 20);
+  if (s.alarms) { g->setTextColor(0xf59e0b); g->drawString(s.alarm, 8, 194); } else { g->setTextColor(0xfbbf24); g->drawString(toolText(s), 8, 194); }
+  g->clearClipRect();
+  footerStatus(s, 216); menuMark(300, 222);
+}
+// X and Z: two rows of 118 px, no spindle.
+void drawXZView(const DispSnap &s) {
+  g->fillScreen(0x0a1020);
+  const int rh = 118;
+  for (int i = 0; i < 2; i++) {
+    int y = i * (rh + 4);
+    g->fillRoundRect(2, y + 2, 316, rh - 4, 6, 0x111a2e); g->fillRect(2, y + 2, 4, rh - 4, 0x38bdf8);
+    g->setTextDatum(top_left); g->setFont(&fonts::Font4); g->setTextColor(0x38bdf8); g->drawString(i ? "Z" : "X", 11, y + 12);
+    g->setFont(&fonts::Font2); g->setTextColor(0xe6edf7); g->drawString(i ? "LONG" : (s.xDia ? "DIA" : "RAD"), 11, y + 44);
+    char b[16]; snprintf(b, sizeof b, "%.4f", i ? s.z : s.x);
+    g->setFont(&fonts::Font7); g->setTextSize(1);
+    float sc = min(2.2f, 270.0f / max(1, (int)g->textWidth(b)));
+    g->setTextSize(sc); g->setTextColor(0x38bdf8); g->setTextDatum(middle_right); g->drawString(b, 314, y + rh / 2); g->setTextSize(1);
+  }
+  menuMark(11, rh - 14);
+}
+void drawMain(const DispSnap &s);
+void drawDro(const DispSnap &s) {
+  switch (S.dispView) {
+    case 1: drawRpmView(s); break;
+    case 2: drawAxisView(s, true); break;
+    case 3: drawAxisView(s, false); break;
+    case 4: drawXZView(s); break;
+    default: drawMain(s);
+  }
 }
 void drawMain(const DispSnap &s) {
   g->fillScreen(0x0a1020);
@@ -591,7 +681,7 @@ void displayTask(void *) {
   g = buffered ? static_cast<lgfx::LovyanGFX *>(&frame) : static_cast<lgfx::LovyanGFX *>(&lcd);
   Serial.printf("display: %s\n", buffered ? "frame buffer allocated" : "no memory for a frame buffer, drawing directly");
   lcd.fillScreen(TFT_BLACK);
-  enum { M_MAIN, M_MENU, M_INFO, M_REBOOT } mode = M_MAIN;
+  enum { M_MAIN, M_MENU, M_VIEW, M_INFO, M_REBOOT } mode = M_MAIN;
   bool down = false; int px = 0, py = 0;                 // press in progress, and where it started
   uint32_t lastDraw = 0, lastTap = 0;
   for (;;) {
@@ -613,9 +703,13 @@ void displayTask(void *) {
         else if (hit(MB[B_FLIP], px, py)) { S.dispFlip = !S.dispFlip; dispSaveReq = true; }
         else if (hit(MB[B_SWAP], px, py)) { S.dispSwapRb = !S.dispSwapRb; lcd.setColorSwap(S.dispSwapRb); dispSaveReq = true; }
         else if (hit(MB[B_CAL], px, py)) calibrateTouch(flip);
+        else if (hit(MB[B_VIEW], px, py)) mode = M_VIEW;
         else if (hit(MB[B_INFO], px, py)) mode = M_INFO;
         else if (hit(MB[B_CLOSE], px, py)) mode = M_MAIN;
         else if (hit(MB[B_REBOOT], px, py)) mode = M_REBOOT;
+      } else if (mode == M_VIEW) {
+        for (int i = 0; i < 5; i++) if (hit(VB[i], px, py)) { S.dispView = i; dispSaveReq = true; mode = M_MAIN; }   // show it at once
+        if (hit(VB[5], px, py)) mode = M_MENU;
       } else if (mode == M_INFO) mode = M_MENU;                 // any tap goes back
       else if (mode == M_REBOOT) {
         if (hit(YES_BTN, px, py)) {
@@ -629,7 +723,7 @@ void displayTask(void *) {
     if (tap || now - lastDraw >= DISP_FRAME_MS) {
       lastDraw = now;
       DispSnap s; xSemaphoreTake(dispLock, portMAX_DELAY); s = dispShared; xSemaphoreGive(dispLock);
-      if (mode == M_MAIN) drawMain(s); else if (mode == M_MENU) drawMenu(s); else if (mode == M_INFO) drawInfo(s); else drawConfirmReboot(s);
+      if (mode == M_MAIN) drawDro(s); else if (mode == M_MENU) drawMenu(s); else if (mode == M_VIEW) drawViewMenu(s); else if (mode == M_INFO) drawInfo(s); else drawConfirmReboot(s);
       if (buffered) frame.pushSprite(0, 0);
     }
     vTaskDelay(pdMS_TO_TICKS(TOUCH_POLL_MS));

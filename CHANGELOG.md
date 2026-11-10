@@ -13,6 +13,12 @@ Change either part, then bump its version and add an entry here.
 
 ## Firmware
 
+### 1.7.0
+- Display: a **View** button in the Settings menu chooses what fills the screen: Everything (the three rows), **RPM only**, **X only**, **Z only**, or **X and Z**. The choice is saved. Pick RPM only until the axis encoders are fitted, so the screen does not show two axes at zero.
+- RPM only: the speed in digits up to 120 px tall, with direction, the target, a full-width speed bar with the target marked, the loaded tool or the alarm, encoder state, and a status line with CNC and Wi-Fi. X only and Z only: the axis in the same large digits, with the other axis and the spindle small underneath. X and Z: two tall rows.
+- The Settings menu's bottom row is now View, Info, Close, Reboot.
+- No firmware change was needed for the level shifter modules that replace the milled interface board: the spindle A/B direction sense does not depend on signal polarity (both lines invert together), the index line is not used, and the charge pump is timed, not read.
+
 ### 1.6.1
 - Display: the R, G and B colour-check squares in the Settings menu move to the lower right corner of the Swap red / blue button, where they no longer sit on top of its label.
 
@@ -76,6 +82,10 @@ Change either part, then bump its version and add an entry here.
 | A | 1.13.0 | 165 × 118 mm single-sided, first milled version |
 
 ## Web page
+
+### 1.21.0 (needs firmware 1.4.0)
+- Help: ready-made **level shifter modules** replace the milled interface board as the standard build. New **Level shifters** tab with every pin of LS1 (spindle lines, 12 V on the HV side), LS2 (X and Z encoders, 12 V) and LS3 (charge pump, 5 V), and the PC817 module that stays for spindle control. The wiring diagram, its connection table, Start here, Parts, G540, Build steps, Setup and checks and Troubleshooting follow. The milled board keeps its tab as "Milled board (alt.)".
+- Help, Display: describes the View choice (Everything, RPM only, X only, Z only, X and Z).
 
 ### 1.20.1 (needs firmware 1.4.0)
 - Help, Build steps: the lathe pot voltage limit is 25 V (C1's rating), not the PC817's 35 V. Matches the Display and Interface board text.

@@ -489,11 +489,12 @@ void drawMenu(const DispSnap &s) {
   drawBtn(MB[B_XDIA], "X shows", S.xDia ? "diameter" : "radius");
   drawBtn(MB[B_FLIP], "Screen", S.dispFlip ? "upside down" : "normal");
   drawBtn(MB[B_SWAP], "Swap red / blue", S.dispSwapRb ? "on" : "off");
-  // Colour check beside the swap button's text: if the letters match the colours, the order is right
+  // Colour check in the swap button's lower right corner, clear of its text: if the letters match the
+  // colours, the order is right
   const uint32_t rgb[3] = {0xff0000, 0x00ff00, 0x0000ff}; const char *ltr[3] = {"R", "G", "B"};
   g->setFont(&fonts::Font0); g->setTextDatum(middle_center);
   for (int i = 0; i < 3; i++) {
-    int bx = MB[B_SWAP].x + 10 + 18 * i, by = MB[B_SWAP].y + 8;
+    int bx = MB[B_SWAP].x + MB[B_SWAP].w - 56 + 18 * i, by = MB[B_SWAP].y + MB[B_SWAP].h - 20;
     g->fillRoundRect(bx, by, 14, 14, 3, rgb[i]); g->setTextColor(0xffffff); g->drawString(ltr[i], bx + 7, by + 7);
   }
   drawBtn(MB[B_CAL], "Calibrate touch", nullptr);

@@ -694,7 +694,7 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
 <div class="toast" id="toast"></div>
 <script>
 // Bump WEB_VERSION with every page change and record it in CHANGELOG.md. FW_MIN is the oldest firmware this page works fully with.
-const WEB_VERSION='1.20.0',FW_MIN='1.4.0';
+const WEB_VERSION='1.20.1',FW_MIN='1.4.0';
 // Interface board revision. hardware/make_pcb.py writes it here; every board file name carries it.
 const BOARD_REV='F';
 document.querySelectorAll('a.hwf').forEach(a=>{const n='board_rev'+BOARD_REV+'_'+a.dataset.f;a.href='hw/'+n;a.download=n;a.textContent=n});document.querySelectorAll('.hwrev').forEach(e=>e.textContent=BOARD_REV);
@@ -1084,9 +1084,11 @@ const HP_WIRES=[
  {id:'tft_rst',c:'#fca5a5',n:'Display RESET',from:'GPIO 8',via:'Direct',to:'Display RESET'},
  {id:'tft_dc',c:'#86efac',n:'Display DC',from:'GPIO 9',via:'Direct',to:'Display DC'},
  {id:'tft_cs',c:'#fde68a',n:'Display CS',from:'GPIO 10',via:'Direct',to:'Display CS'},
- {id:'tft_mosi',c:'#f1f5f9',n:'Display SDI (MOSI)',from:'GPIO 11',via:'Direct',to:'Display SDI (MOSI)'},
- {id:'tft_sck',c:'#94a3b8',n:'Display SCK',from:'GPIO 12',via:'Direct',to:'Display SCK'},
- {id:'tft_vcc',c:'#dc2626',n:'Display power',from:'5V pin',via:'Direct',to:'Display VCC'},
+ {id:'tft_mosi',c:'#f1f5f9',n:'Display SDI (MOSI)',from:'GPIO 11',via:'Direct',to:'Display SDI (MOSI), and T_DIN in parallel'},
+ {id:'tft_sck',c:'#94a3b8',n:'Display SCK',from:'GPIO 12',via:'Direct',to:'Display SCK, and T_CLK in parallel'},
+ {id:'tft_tdo',c:'#67e8f9',n:'Touch data out',from:'GPIO 13',via:'Direct',to:'Display T_DO'},
+ {id:'tft_tcs',c:'#fdba74',n:'Touch chip select',from:'GPIO 14',via:'Direct',to:'Display T_CS'},
+ {id:'tft_vcc',c:'#dc2626',n:'Display power',from:'5V pin (3V3 pin if the module\'s J1 jumper is bridged)',via:'Direct',to:'Display VCC'},
  {id:'tft_led',c:'#ef4444',n:'Display backlight',from:'3V3 pin',via:'Direct',to:'Display LED'},
  {id:'knob',c:'#a3e635',n:'Knob wiper',from:'10 kΩ pot, center lug',via:'Direct',to:'GPIO 1'},
  {id:'pwm',c:'#fb7185',n:'Spindle PWM',from:'GPIO 2',via:'J8, R13 330 Ω',to:'PC817 pin 1'},
@@ -1148,12 +1150,12 @@ function hpDiagram(){const y=n=>70+(n-1)*26,w=id=>HP_WIRES.find(x=>x.id===id).c,
  const gy=470;s+=box(170,gy,120,110)+t(230,gy-8,'G540','text-anchor="middle" font-weight="700"')+t(282,gy+24,'Terminal 2','text-anchor="end"')+t(282,gy+48,'Terminal 3','text-anchor="end"')+t(282,gy+72,'Terminal 1','text-anchor="end"')+t(282,gy+96,'Terminal 12','text-anchor="end"');
  s+=g('enca','M336 '+bBot+'V'+(gy+20)+'H290')+g('encb','M345 '+bBot+'V'+(gy+44)+'H290')+g('encz','M354 '+bBot+'V'+(gy+68)+'H290')+t(318,bBot+14,'J5','class="m"');
  // Display, wired straight to the ESP32
- const dx=364,dTop=380,dBot=606;s+=box(dx,dTop,86,dBot-dTop,'#111827')+t(dx+43,dTop-8,'Display 2.8 in','text-anchor="middle" font-weight="700"')+'<rect x="'+(dx+8)+'" y="'+(dTop+46)+'" width="44" height="34" rx="3" fill="#0a1020" stroke="#38bdf8"/>'+t(dx+30,dTop+68,'0.48','text-anchor="middle" style="font-size:11px;fill:#38bdf8;font-weight:700"');
- const dp=[['RST',392,'tft_rst','M'+L+' '+y(12)+'H472V392H450'],['LED',416,'tft_led','M'+L+' '+y(2)+'H486V416H450'],['DC',y(15),'tft_dc','M'+L+' '+y(15)+'H450'],['CS',y(16),'tft_cs','M'+L+' '+y(16)+'H450'],['MOSI',y(17),'tft_mosi','M'+L+' '+y(17)+'H450'],['SCK',y(18),'tft_sck','M'+L+' '+y(18)+'H450'],['VCC',560,'tft_vcc','M'+L+' '+y(21)+'H478V560H450']];
- dp.forEach(p=>{s+=t(444,p[1]+4,p[0],'text-anchor="end" class="m"')+g(p[2],p[3],p[2]==='tft_led'?dot(L,y(2),w('tft_led')):'')});s+=t(444,588,'GND','text-anchor="end" class="m"');
+ const dx=364,dTop=380,dBot=650;s+=box(dx,dTop,86,dBot-dTop,'#111827')+t(dx+43,dTop-8,'Display 2.8 in','text-anchor="middle" font-weight="700"')+'<rect x="'+(dx+8)+'" y="'+(dTop+46)+'" width="44" height="34" rx="3" fill="#0a1020" stroke="#38bdf8"/>'+t(dx+30,dTop+68,'0.48','text-anchor="middle" style="font-size:11px;fill:#38bdf8;font-weight:700"');
+ const dp=[['RST',392,'tft_rst','M'+L+' '+y(12)+'H472V392H450'],['LED',416,'tft_led','M'+L+' '+y(2)+'H486V416H450'],['DC',y(15),'tft_dc','M'+L+' '+y(15)+'H450'],['CS',y(16),'tft_cs','M'+L+' '+y(16)+'H450'],['MOSI',y(17),'tft_mosi','M'+L+' '+y(17)+'H450'],['SCK',y(18),'tft_sck','M'+L+' '+y(18)+'H450'],['T_DO',y(19),'tft_tdo','M'+L+' '+y(19)+'H450'],['T_CS',y(20),'tft_tcs','M'+L+' '+y(20)+'H450'],['VCC',600,'tft_vcc','M'+L+' '+y(21)+'H478V600H450']];
+ dp.forEach(p=>{s+=t(444,p[1]+4,p[0],'text-anchor="end" class="m"')+g(p[2],p[3],p[2]==='tft_led'?dot(L,y(2),w('tft_led')):'')});s+=t(444,632,'GND','text-anchor="end" class="m"');
  // Power and ground
  s+=g('v33','M'+L+' '+y(1)+'H442V'+bTop+'M'+L+' '+y(1)+'H496V16H760V122',dot(L,y(1),w('v33')));
- s+=g('gnd','M'+L+' '+y(22)+'H462V'+(bBot-6)+'H450M462 584H450M462 '+y(22)+'V650H'+nX+'V'+(sy+40)+'M306 650V'+(gy+92)+'H290M'+R+' '+y(22)+'H735V174M735 288H870M735 174H800',dot(462,584,'#e6edf7')+dot(462,y(22),'#e6edf7')+dot(nX,sy+40,'#e6edf7')+dot(306,650,'#e6edf7'));
+ s+=g('gnd','M'+L+' '+y(22)+'H462V'+(bBot-6)+'H450M462 628H450M462 '+y(22)+'V650H'+nX+'V'+(sy+40)+'M306 650V'+(gy+92)+'H290M'+R+' '+y(22)+'H735V174M735 288H870M735 174H800',dot(462,628,'#e6edf7')+dot(462,y(22),'#e6edf7')+dot(nX,sy+40,'#e6edf7')+dot(306,650,'#e6edf7'));
  s+=dot(735,288,'#e6edf7');
  // Knob
  s+=box(800,96,110,96)+t(855,90,'Speed knob, 10 kΩ','text-anchor="middle" font-weight="700"')+'<circle cx="875" cy="144" r="24" fill="#334155" stroke="#94a3b8"/><path d="M875 144L890 126" stroke="#e6edf7" stroke-width="3"/>';
@@ -1280,7 +1282,7 @@ const HP_STEPS=[
   ['Wire DB25 pin 16 to J6 pin 16, and DB25 pin 18 to J6 GND.','The DRO card then shows CNC Online while UCCNC is running.']]],
  ['Connect spindle control last (lathe unplugged)',[
   ['<b>Unplug the lathe from the wall</b> and wait for the controller to discharge.','The pot terminals may be at mains voltage when powered.'],
-  ['Identify HIGH, WIPER and LOW at the speed pot and label them. Measure the voltage between HIGH and LOW with the lathe powered, then unplug again.','It must be under 35 V, the PC817\'s limit. It is usually 5–10 V.'],
+  ['Identify HIGH, WIPER and LOW at the speed pot and label them. Measure the voltage between HIGH and LOW with the lathe powered, then unplug again.','It must be under 25 V, the rating of C1 (the PC817 itself takes 35 V). It is usually 5–12 V.'],
   ['Disconnect the pot and wire HIGH, WIPER and LOW to J9.',''],
   ['Check that J8 GPIO 2 is wired to the ESP32.','R13, U1, R14 and C1 are already on the board.'],
   ['Check with a meter, with everything unplugged: there must be no continuity between ESP32 GND and any J9 terminal.','<b>If there is continuity, find it before going further.</b>'],

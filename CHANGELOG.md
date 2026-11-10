@@ -13,6 +13,9 @@ Change either part, then bump its version and add an entry here.
 
 ## Firmware
 
+### 1.6.1
+- Display: the R, G and B colour-check squares in the Settings menu move to the lower right corner of the Swap red / blue button, where they no longer sit on top of its label.
+
 ### 1.6.0
 - Display: the boot screen is now a drawn lathe (bed, headstock, chuck, brass workpiece, tool post, tailstock) with the name and firmware version, shown for 2 s. It replaces the plain blue test screen.
 - Display: the Settings menu has no header any more; a new **Info** button shows the firmware version, Wi-Fi address and signal, the `.local` address, the spindle run hours and the powered-on hours. Any tap on the Info screen goes back.
@@ -73,6 +76,10 @@ Change either part, then bump its version and add an entry here.
 | A | 1.13.0 | 165 × 118 mm single-sided, first milled version |
 
 ## Web page
+
+### 1.20.1 (needs firmware 1.4.0)
+- Help, Build steps: the lathe pot voltage limit is 25 V (C1's rating), not the PC817's 35 V. Matches the Display and Interface board text.
+- New `docs/BUILD_GUIDE.md` in the repository: the build guide with pictures (dashboard, Help panes, board drawings, the display screens), linked from the README.
 
 ### 1.20.0 (needs firmware 1.4.0)
 - Help, Display: describes the lathe boot picture, the Info button (firmware, Wi-Fi, address, spindle and power-on hours) and the header-less menu of firmware 1.6.0.

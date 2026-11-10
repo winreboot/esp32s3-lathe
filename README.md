@@ -2,7 +2,7 @@
 
 Web dashboard served by an ESP32-S3 on the lathe: live DRO, spindle gauge and closed-loop speed control, Wi-Fi, OTA updates, recording/playback with G-code export, threading presets, surface-speed calculator, run hours, job notes, events and alarms.
 
-Builds with Arduino-ESP32 core 2.0.x (PlatformIO `espressif32 @ 6.9.0`) and the libraries in `platformio.ini`. The full build guide, wiring diagram and parts list are under **Help** on the dashboard. Version history is in `CHANGELOG.md`.
+Builds with Arduino-ESP32 core 2.0.x (PlatformIO `espressif32 @ 6.9.0`) and the libraries in `platformio.ini`. The full build guide, wiring diagram and parts list are under **Help** on the dashboard; the same guide with pictures is in [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md). Version history is in `CHANGELOG.md`.
 
 ## What the ESP32 does, and doesn't
 | Feature | How |

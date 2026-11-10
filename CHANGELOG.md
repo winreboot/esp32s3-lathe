@@ -13,6 +13,9 @@ Change either part, then bump its version and add an entry here.
 
 ## Firmware
 
+### 1.8.1
+- Display: fixes the smooth digits showing as empty boxes in 1.8.0. The graphics library copies each glyph bitmap onto the stack while drawing it (up to 11 KB for the biggest digit), which overflowed the display task's 6 KB stack. The task now has 24 KB.
+
 ### 1.8.0
 - Display: smooth digits. The numbers were the library's 48 px seven-segment bitmap font scaled up 1.5×, which made every pixel a block. They are now anti-aliased glyphs (0–9, point, minus) from **Oswald Bold** (SIL Open Font License, `fonts/OFL.txt`) in three sizes: 120 px digits for the RPM-only view, 70 px for the DRO rows and the single-axis views, 57 px when a value has two digits before the point. Each number uses the largest size that fits its space, so nothing is ever scaled.
 - The fonts are `fonts/d_big.vlw`, `d_mid.vlw` and `d_small.vlw` (about 140 KB), linked into the firmware by `board_build.embed_files` and read straight from flash; `tools/make_vlw.py` regenerates them from the TTF. If they ever fail to load, the old bitmap font is used and the serial log says so.

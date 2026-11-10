@@ -948,7 +948,9 @@ void setup() {
   analogReadResolution(12);
   ledcSetup(PWM_CH, 2000, PWM_BITS); ledcAttachPin(PIN_PWM, PWM_CH); ledcWrite(PWM_CH, 0);
   dispLock = xSemaphoreCreateMutex();
-  xTaskCreatePinnedToCore(displayTask, "display", 6144, nullptr, 1, nullptr, 0);
+  // 24 KB stack: the library puts each smooth-font glyph bitmap on the stack while drawing it (alloca), and the
+  // biggest digit is about 11 KB. With the old 6 KB stack the glyphs came out as empty boxes.
+  xTaskCreatePinnedToCore(displayTask, "display", 24576, nullptr, 1, nullptr, 0);
   if (!ledPinOk(S.ledRgb, true)) S.ledRgb = -1;   // never drive a pin from a bad saved value
   if (!ledPinOk(S.ledBlue, false) || S.ledBlue == S.ledRgb) S.ledBlue = -1;
   xTaskCreatePinnedToCore(ledTask, "leds", 3072, nullptr, 1, nullptr, 0);

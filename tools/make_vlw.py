@@ -14,7 +14,7 @@ sys.path.insert(0, sys.argv[1])
 from PIL import Image, ImageDraw, ImageFont
 
 TTF, OUT, PREVIEW = sys.argv[2], sys.argv[3], sys.argv[4]
-CHARS = "0123456789.-"
+CHARS = "-.0123456789"      # sorted by code point: LovyanGFX finds glyphs with a binary search over the table
 
 def measure(em):
     f = ImageFont.truetype(TTF, em)

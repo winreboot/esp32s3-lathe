@@ -13,6 +13,9 @@ Change either part, then bump its version and add an entry here.
 
 ## Firmware
 
+### 1.8.2
+- Display: the smooth digits now actually appear. The font files listed the glyphs as 0–9 then point and minus, but the library finds a glyph with a binary search over the table, which needs it sorted by character code; with minus (45) last, every digit was reported missing and drawn as a placeholder box. The fonts are regenerated in code-point order (`-` `.` `0`–`9`). The 24 KB display stack from 1.8.1 stays, because the library still copies each glyph bitmap onto the stack.
+
 ### 1.8.1
 - Display: fixes the smooth digits showing as empty boxes in 1.8.0. The graphics library copies each glyph bitmap onto the stack while drawing it (up to 11 KB for the biggest digit), which overflowed the display task's 6 KB stack. The task now has 24 KB.
 

@@ -81,7 +81,7 @@ Power up. You should see the lathe picture with the firmware version for two sec
 
 ![The display screens](img/display_screens.png)
 
-In the menu, **View** chooses what fills the screen: Everything, **RPM only**, X only, Z only, or X and Z. Pick RPM only until the axis encoders are fitted, so the screen does not show two axes at zero. If the colours look wrong (the workpiece in the power-up picture should be brass yellow; in the menu the squares marked R, G and B should be red, green and blue), turn on **Swap red / blue**. Everything set in the menu is saved. Unplug again.
+In the menu, **View** chooses what fills the screen: Everything, **RPM only**, X only, Z only, or X and Z. Pick RPM only until the axis encoders are fitted, so the screen does not show two axes at zero. If the colours look wrong (the workpiece in the power-up picture should be brass yellow; in the menu the squares marked R, G and B should be red, green and blue), open **Colours** and turn on **Swap red / blue**. The same screen switches the **Background** between dark blue and black. Everything set in the menu is saved. Unplug again.
 
 ## 4. The level shifter modules
 
@@ -174,7 +174,7 @@ Outer lugs to 3V3 and GND, centre lug to GPIO 1. If the speed rises the wrong wa
 
 ## 11. Day to day
 
-- The display's **Settings menu** (tap anywhere): Zero X, Zero Z, X shows diameter/radius, screen normal/upside down, swap red/blue, calibrate touch, View, Info (firmware, Wi-Fi, address, spindle run hours, powered-on hours), Close, Reboot. It closes itself after 30 s.
+- The display's **Settings menu** (tap anywhere): Zero X, Zero Z, X shows diameter/radius, screen normal/upside down, Colours (swap red/blue, dark blue or black background), calibrate touch, View, Info (firmware, Wi-Fi, address, spindle run hours, powered-on hours), Close, Reboot. It closes itself after 30 s.
 - Spindle hours count every second the spindle turns and are saved every minute; the web page's Run hours card shows the same figure.
 - Firmware updates: upload `firmware.bin` in the Firmware window. Page updates: **Upload Filesystem Image** from PlatformIO (this erases saved recordings).
 

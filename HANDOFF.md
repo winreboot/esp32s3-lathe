@@ -3,7 +3,8 @@
 Read `CLAUDE.md` for the working rules, `README.md` for what the system does, `CHANGELOG.md` for every version. This file is the context a new session would otherwise lack: what was decided recently, why, and what is next.
 
 ## Current versions
-- Firmware **1.8.3** (`platformio.ini`), web page **1.21.0** (`data/index.html`, `FW_MIN` 1.4.0), interface board **rev F** (`hardware/make_pcb.py`).
+- Firmware **1.9.0** (`platformio.ini`), web page **1.21.1** (`data/index.html`, `FW_MIN` 1.4.0), interface board **rev F** (`hardware/make_pcb.py`).
+- 1.9.0: Colours screen (red/blue swap + black background, `dblack`). All screen colours go through `theme()` in main.cpp; never hard-code the background or panel colours again.
 - Smooth digits must be drawn with `setTextColor(fg)` only (no background colour): LovyanGFX then uses its read-back alpha-blend path on the sprite. With a background colour it painted dark boxes on the real panel (1.8.2).
 - VLW gotcha found in 1.8.2: `VLWfont::getUnicodeIndex` is a binary search, so the glyph table in a .vlw must be sorted by code point; `tools/make_vlw.py` now writes `-` `.` `0`–`9` in that order. Unsorted tables show every character as a placeholder box.
 - 1.8.0 drew the smooth digits as empty boxes: LovyanGFX's `VLWfont::drawChar` does `alloca(w*h)` for the glyph bitmap, and the display task had a 6 KB stack. 1.8.1 gives it 24 KB. Keep that in mind if bigger fonts are ever added (the big digit is ~11 KB).

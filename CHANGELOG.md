@@ -13,6 +13,9 @@ Change either part, then bump its version and add an entry here.
 
 ## Firmware
 
+### 1.9.0
+- Display: a **Colours** screen (the Settings button that was Swap red / blue) with two switches: **Swap red / blue**, with the R G B check squares, and **Background**: dark blue or **black**. Black puts everything on a black screen; the row panels become black too and keep a thin grey outline so the layout still reads. Both are saved.
+
 ### 1.8.3
 - Display: the smooth digits no longer sit in dark boxes. They are now drawn without a background colour, which makes the library read the frame buffer behind each glyph and blend the edges onto it, so the digits are transparent over the row colour.
 
@@ -95,6 +98,9 @@ Change either part, then bump its version and add an entry here.
 | A | 1.13.0 | 165 × 118 mm single-sided, first milled version |
 
 ## Web page
+
+### 1.21.1 (needs firmware 1.4.0)
+- Help, Display: describes the Colours screen (red/blue swap and the black background) of firmware 1.9.0.
 
 ### 1.21.0 (needs firmware 1.4.0)
 - Help: ready-made **level shifter modules** replace the milled interface board as the standard build. New **Level shifters** tab with every pin of LS1 (spindle lines, 12 V on the HV side), LS2 (X and Z encoders, 12 V) and LS3 (charge pump, 5 V), and the PC817 module that stays for spindle control. The wiring diagram, its connection table, Start here, Parts, G540, Build steps, Setup and checks and Troubleshooting follow. The milled board keeps its tab as "Milled board (alt.)".

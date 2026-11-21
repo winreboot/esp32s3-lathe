@@ -13,6 +13,41 @@ Change either part, then bump its version and add an entry here.
 
 ## Firmware
 
+### 1.14.0
+- **Tools: three new touch screens**, opened with the new TOOLS button in the Settings title bar. Each has artwork for both backgrounds and a plain version, like the other screens, and stays open until Back is pressed.
+- **Thread Assist.** Twelve metric and twelve inch presets on their own screen, the length typed on a number pad (or taken from the Z DRO), 6, 8, 11 or 14 passes plus two spring passes, and the thread depth and the depth after every pass shown before anything is cut. SEND makes the G33 program and keeps it on the ESP32 as a job: `/api/job` describes it, `/api/job.nc` is the program. The ESP32 cannot write onto the PC, so the PC fetches it: the page's Thread Wizard shows a Download link, and `/api/uccnc-macro` hands out a UCCNC macro (`M20200.txt`, written with the ESP32's own address) that downloads the job and loads it with `exec.Loadfile`. The macro has not been run on a real UCCNC yet.
+- `threadProgram()` rewritten to match the page's Thread Wizard with its default choices: any number of passes with equal metal per pass, the fit check about three quarters of the way, X moved before Z on the way in, a header that states the passes. `/api/thread.nc` takes an optional `passes` and answers 400 instead of crashing when a value is missing.
+- **Spindle Diagnostics.** Speed, deviation from the target in percent, the speed and drive graph, stability over the last 10 s, the time taken to reach the last new speed, load, and a verdict bar. New: the encoder's index pulse (Z, GPIO 6) is now read. The A pulses between two index pulses are compared with Encoder lines per turn: fewer are counted as missed pulses, more as noise. Without an index signal those readings show A/B ONLY and dashes. A tap on the verdict bar restarts the counts.
+- **Material & Speed.** Aluminum, steel, stainless or brass; HSS or carbide; rough or finish; work diameter typed or taken from the X DRO. Suggests RPM = surface speed × 3.82 ÷ diameter, limited to Min and Max RPM, with a feed and depth-of-cut hint. APPLY sets it as the screen preset. Surface speeds are from LittleMachineShop's turning table (carbide roughing is 70 % of their carbide figure).
+- Two more text fonts, `fonts/t_mid.vlw` (values) and `fonts/t_xl.vlw` (thread names and the large numbers: capitals, digits and a few signs). Twelve more pictures in `art/`. The live state has a new `job` number.
+- Built for cores 2.0.17 and 3.3.13 (about 2.3 MB and 2.5 MB of the 3.2 MB app space). Not yet run on the display or against a real encoder index: the layouts were checked on PC previews of the same artwork.
+
+### 1.13.0
+- **The black background has the glow style too.** A second set of artwork, `art/*_k.png`: a black ground with the same glowing blue edges, shaded panels, icons and title bars. Colours > Background now switches between the two sets at once. The plain flat screens remain only as the fallback without PSRAM or if a picture fails to decode. About 150 KB more firmware.
+
+### 1.12.0
+- **Screens with glow, shading and icons.** Every screen now sits on artwork: a dark blue background that is lighter in the middle, panels and buttons with a gradient, a bright edge and a soft outer glow, line icons on the Settings buttons, and the title bars. `tools/make_art.py` draws the parts that never change into `art/*.png` (eight pictures, about 190 KB), which are linked into the firmware; the firmware decodes the picture for the screen in use into its own PSRAM buffer and paints the live values on top.
+- RPM view on the artwork: title bar with a spindle icon, direction pill and PRESET/SET speed; the speed in a new 80 px digit font (`fonts/d_rpm.vlw`) with an RPM label under it; the graph in its own panel with the scale at the left; a bottom bar with the tool, LOAD % and a menu button. Settings, the keypad, Info, View, the everything view and the X and Z view have artwork too; Colours, the single-axis views and the reboot question use the glowing background with code-drawn buttons in matching colours.
+- The plain screens of 1.11.0 remain and are used with the **black** background, without PSRAM, or if a picture fails to decode. Button positions are the same in both, so touch behaves the same.
+- Opening a screen takes about a fifth of a second longer the first time, while its picture is decoded. Built for cores 2.0.17 and 3.3.13 (about 1.7 MB of the 3.2 MB app space); the look was checked against PC previews of the same artwork, not yet on the display.
+
+### 1.11.0
+- **Set the speed on the screen.** A keypad (Settings > Set RPM, or a tap on the title strip of the RPM only view) takes a speed. The knob stays the start and stop: at zero the spindle is off; turned up, the spindle runs at the typed speed instead of the knob position, and the screen shows PRESET. The Knob key, or OK with nothing typed, gives the speed back to the knob. The preset is limited to Min and Max RPM, is not saved across a restart, and a target from the web page still overrides it. With "Knob controls spindle" set to No, the preset does nothing.
+- **RPM only view: a graph instead of the speed bar and the status line.** The last 37 s of measured speed (green, in a window of ±20 % round the target, which is the dotted line) and controller drive (amber, 0 to 100 %), so a dip under load and the recovery can be seen. Below it: the loaded insert or the alarm, and LOAD %. The "CNC offline" and IP line is gone from this view; CNC state is now on the Info screen.
+- **Text in Oswald, like the digits.** Titles, labels and buttons use two new anti-aliased fonts, `fonts/t_big.vlw` and `t_small.vlw` (made by `tools/make_vlw_text.py`), instead of the library's bitmap fonts, which remain the fallback.
+- **Menus redrawn.** Settings is a title bar with Close and a 3 × 3 grid: Set RPM, View, Colours, Zero X, Zero Z, X shows, Screen, Touch, Info. Reboot moved onto the Info screen. Buttons have a lighter edge, and two-line buttons show their current value in amber.
+- The live state sent to the page has a new `preset` value. Built for the Arduino IDE on cores 2.0.17 and 3.3.13; not yet run on the display, so spacing may need a touch-up.
+
+### 1.10.1
+- The Arduino IDE sketch now also builds with the current Arduino-ESP32 core 3.x (checked with 3.3.13), not only 2.0.17. Core 3.x replaced `ledcSetup`/`ledcAttachPin` with `ledcAttachChannel`, and its `ledcWrite` takes the pin instead of the channel; `pwmBegin()` and `pwmWrite()` pick the right calls for the installed core. Nothing changes on 2.0.x or in the PlatformIO build.
+- With core 3.x the Arduino build needs LovyanGFX 1.2 or newer (checked with 1.3.0); 1.1.16 does not compile against it. The partition table is the same on both cores, so settings, recordings and board files survive a change of core.
+- On core 3.x the serial log shows a warning at boot that the legacy pulse-counter driver is deprecated. It still works; nothing else in the firmware uses the new driver, so the two do not conflict.
+
+### 1.10.0
+- **Arduino IDE version.** `tools/make_arduino.py` writes `arduino/esp32s3_lathe/`, a sketch folder that builds in the Arduino IDE (esp32 core 2.0.17, the core PlatformIO uses). `src/main.cpp` stays the only copy of the code; the script copies it in and adds the firmware version, the digit fonts as C arrays (`fonts_vlw.h`, because the IDE has no `embed_files`) and the web page, gzipped (`web_page.h`). The setup notes and the exact Tools menu settings are at the top of `esp32s3_lathe.ino`.
+- In the Arduino build the **page is built into the firmware**: `/` and `/index.html` come from flash, so uploading the firmware, over USB or in the Firmware window, also updates the page, with no filesystem upload and no lost recordings. Recordings and the board files still come from LittleFS. The PlatformIO build is unchanged and still serves the page from LittleFS.
+- The Wi-Fi name and password are no longer in the source code. Saved settings are kept; with none saved, the ESP32 opens the ESP32-Lathe access point so they can be entered in Settings. The old values are still in the repository's history, so change that Wi-Fi password.
+
 ### 1.9.0
 - Display: a **Colours** screen (the Settings button that was Swap red / blue) with two switches: **Swap red / blue**, with the R G B check squares, and **Background**: dark blue or **black**. Black puts everything on a black screen; the row panels become black too and keep a thin grey outline so the layout still reads. Both are saved.
 
@@ -98,6 +133,28 @@ Change either part, then bump its version and add an entry here.
 | A | 1.13.0 | 165 × 118 mm single-sided, first milled version |
 
 ## Web page
+
+### 1.25.0
+- Thread Wizard: when a program has been sent from the touch screen's Thread Assist (firmware 1.14.0), a line at the top names it and links to the G-code and to the UCCNC macro.
+- Help > display: new notes for the Tools screens (Thread Assist and how the program reaches UCCNC, Spindle Diagnostics and what each reading means, Material & Speed and where its figures come from).
+
+### 1.24.1 (needs firmware 1.4.0; describes firmware 1.13.0)
+- Help, Display: both backgrounds now have the artwork screens.
+
+### 1.24.0 (needs firmware 1.4.0; describes firmware 1.12.0)
+- Help, Display: explains the artwork screens and when the plain ones are used.
+
+### 1.23.0 (needs firmware 1.4.0; describes firmware 1.11.0)
+- Help, Display: describes the redrawn Settings menu, setting the speed on the screen with the keypad, and the graph in the RPM only view.
+
+### 1.22.0 (needs firmware 1.4.0)
+- Thread Wizard: **thread length is in inches** for every thread type, with the mm value shown beside it.
+- Thread Wizard: **Passes** box next to the first pass. Type the number of passes and the first pass follows, or type the first pass and the number of passes follows. Two spring passes are always added. A typed first pass no longer forces at least 11 passes, so a warning appears when the first cut is heavy for a small lathe.
+- Thread Wizard: **Start clearance**: how far in front of the end face each pass starts. The default is two pitches (at least 0.08 in), down from 0.2 in. A warning appears when flank infeed would leave less than one pitch of run-up.
+- Thread Wizard: **Tailstock center in the end**. When ticked, the program never moves further out in Z than the start; for the fit check and at the end it pulls the tool out in X (1 in over the retract diameter) instead of going to Z0.4, so it cannot hit the live center.
+- Thread Wizard: **Start at pass** writes a program that begins at a later pass, for finishing a thread after a stop; the file name gets `_from_passN`. **Pass schedule** lists each pass with its depth, X and start Z.
+- Thread program: approaches the work with X first, then Z, instead of one diagonal rapid. Choosing a different pitch now resets the speed, passes and start clearance for that pitch.
+- The firmware's `/api/thread.nc` still writes the older fixed program (11 passes, start Z0.2); the wizard does not use it.
 
 ### 1.21.1 (needs firmware 1.4.0)
 - Help, Display: describes the Colours screen (red/blue swap and the black background) of firmware 1.9.0.

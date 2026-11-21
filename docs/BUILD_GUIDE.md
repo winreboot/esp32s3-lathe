@@ -1,8 +1,8 @@
 # ESP32-S3 Lathe Control: build guide
 
-A step-by-step guide to building the controller: flashing the ESP32-S3, wiring the touch display, the level shifter modules and the PC817 module, mounting the encoders, connecting the G540 and the lathe, and calibrating. The same guide, with the interactive wiring diagram and tick-off checklist, is on the dashboard under **Help**; this copy lives with the code so it can be read without the ESP32.
+A step-by-step guide to building the controller from ready-made modules: flashing the ESP32-S3, wiring the touch display, the level shifter modules and the PC817 module, mounting the encoders, connecting the G540 and the lathe, and calibrating. The Lathe Carrier board, available soon, will replace the modules and most of the wiring in sections 4 to 6 and 8; see the [README](../README.md). The same guide, with the interactive wiring diagram and tick-off checklist, is on the dashboard under **Help**; this copy lives with the code so it can be read without the ESP32.
 
-Versions this guide matches: firmware **1.7.0**, web page **1.21.x**. The `CHANGELOG.md` lists what changed since.
+Versions this guide matches: firmware **1.14.0**, web page **1.25.0**. The [CHANGELOG](../CHANGELOG.md) lists every change.
 
 ![The dashboard](img/dashboard.png)
 
@@ -12,7 +12,7 @@ Versions this guide matches: firmware **1.7.0**, web page **1.21.x**. The `CHANG
 | --- | --- |
 | Live DRO for X and Z | A 600 P/R encoder on each slide, counted in hardware (2400 counts per rev) |
 | Spindle RPM and direction, closed-loop speed control | The 100 P/R spindle encoder, and a PC817 optocoupler driving the lathe's own speed-pot input |
-| 2.8 in touch display at the machine | RPM, X and Z in large digits, in the layout you choose; a tap opens a Settings menu |
+| 2.8 in touch display at the machine | RPM with a load graph, X and Z in large digits, in the layout you choose; a tap opens a Settings menu with a speed keypad and the tool screens (Thread Assist, Spindle Diagnostics, Material & Speed) |
 | Web dashboard over Wi-Fi | Settings, recording and playback with G-code export, threading presets, run hours, alarms, OTA updates |
 | CNC Online indicator (optional) | A tap on the G540 charge-pump line |
 
@@ -48,8 +48,8 @@ Tools: soldering iron (only for the two filter parts, if you don't use a termina
 
 ## 2. Flash the ESP32 and prove it on the bench
 
-1. Install PlatformIO (the VS Code extension, or `pip install platformio`).
-2. In the project folder: `pio run -t upload` (firmware), then `pio run -t uploadfs` (the web page in `data/`).
+1. Arduino IDE (easiest): download `esp32s3_lathe_fw<version>_page<version>_arduino.zip` from the repository's Releases. Install the **esp32** boards package by Espressif Systems (3.x, or 2.0.17), copy the folders in the zip's `libraries` into your Arduino libraries folder, open `esp32s3_lathe/esp32s3_lathe.ino`, set the Tools menu as listed at the top of that file, and upload. The web page is inside this firmware.
+2. Or PlatformIO: in the project folder, `pio run -t upload` (firmware), then `pio run -t uploadfs` (the web page in `data/`).
 3. Plug the ESP32 into the charger with nothing else attached. The blue LED flashes, then goes solid or flashes very fast.
 4. First boot: no Wi-Fi is configured, so it opens the access point **ESP32-Lathe** (password `lathe1234`). Join it, open http://192.168.4.1, enter your Wi-Fi name and password in **Settings**, and **Save & reboot**.
 5. Afterwards the dashboard is at http://esp32-lathe.local (or the IP shown on the page and on the display's Info screen). Later firmware goes in through the **Firmware** window on the page.
@@ -79,9 +79,12 @@ Wire the module straight to the ESP32-S3 DevKitC-1. Keep the wires under about 2
 
 Power up. You should see the lathe picture with the firmware version for two seconds, then the DRO. The **first tap** on the screen starts the touch calibration: press the three crosses as they appear, firmly, with a fingernail or the stylus. After that, a tap anywhere opens the Settings menu.
 
-![The display screens](img/display_screens.png)
+| | |
+| --- | --- |
+| ![RPM view](screens/rpm.png) | ![Settings](screens/menu.png) |
+| The RPM only view | The Settings menu |
 
-In the menu, **View** chooses what fills the screen: Everything, **RPM only**, X only, Z only, or X and Z. Pick RPM only until the axis encoders are fitted, so the screen does not show two axes at zero. If the colours look wrong (the workpiece in the power-up picture should be brass yellow; in the menu the squares marked R, G and B should be red, green and blue), open **Colours** and turn on **Swap red / blue**. The same screen switches the **Background** between dark blue and black. Everything set in the menu is saved. Unplug again.
+Every screen, in both colours, is in [screens](screens). In the menu, **View** chooses what fills the screen: Everything, **RPM only**, X only, Z only, or X and Z. Pick RPM only until the axis encoders are fitted, so the screen does not show two axes at zero. If the colours look wrong (the workpiece in the power-up picture should be brass yellow; in the menu the squares marked R, G and B should be red, green and blue), open **Colours** and turn on **Swap red / blue**. The same screen switches the **Background** between dark blue and black. Everything set in the menu is saved. Unplug again.
 
 ## 4. The level shifter modules
 
@@ -174,16 +177,10 @@ Outer lugs to 3V3 and GND, centre lug to GPIO 1. If the speed rises the wrong wa
 
 ## 11. Day to day
 
-- The display's **Settings menu** (tap anywhere): Zero X, Zero Z, X shows diameter/radius, screen normal/upside down, Colours (swap red/blue, dark blue or black background), calibrate touch, View, Info (firmware, Wi-Fi, address, spindle run hours, powered-on hours), Close, Reboot. It closes itself after 30 s.
+- The display's **Settings menu** (tap anywhere): Set RPM, View, Colours (swap red/blue, dark blue or black background), Zero X, Zero Z, X shows diameter/radius, Screen normal/upside down, Touch calibrate, and Info (firmware, Wi-Fi, address, CNC online, spindle run hours, powered-on hours, Reboot). It closes itself after 30 s.
+- **Set RPM** (or a tap on the title strip of the RPM view) opens a keypad. The knob stays the start and stop; turned up, the spindle runs at the typed speed. The Knob key gives the speed back to the knob.
+- **TOOLS** in the Settings title bar opens Thread Assist (pick a thread, SEND the program, load it in UCCNC with the `M20200` macro), Spindle Diagnostics and Material & Speed. The README explains each.
 - Spindle hours count every second the spindle turns and are saved every minute; the web page's Run hours card shows the same figure.
-- Firmware updates: upload `firmware.bin` in the Firmware window. Page updates: **Upload Filesystem Image** from PlatformIO (this erases saved recordings).
+- Firmware updates: upload the `.bin` in the dashboard's Firmware window (Arduino IDE: Sketch → Export Compiled Binary). With the Arduino build the page comes with the firmware; with PlatformIO, page updates need **Upload Filesystem Image**, which erases saved recordings.
 
 ![Build steps with tick boxes, in Help](img/help_steps.png)
-
-## Appendix: the milled interface board
-
-Before the shifter modules, the interface was a two-sided milled board (rev F) carrying 2N3904 inverters, pull-ups, the PC817 stage and screw terminals for every cable. It still works and the files are in `hardware/` and under Help → Milled board (alt.), with the milling steps and the one-operation-per-layer DXFs (`ISO_CENTER`, `CLEAR_POCKET`, `COPPER_REF`, `DRILL_0P8`, `DRILL_1P3`, `ALIGN_3P0`, `SLOT`, `OUTLINE`).
-
-![Interface board, component side](img/board_preview.png)
-
-![Side 1 as the CAM sees it](img/board_bottom_cam.png)

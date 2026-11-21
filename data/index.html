@@ -81,7 +81,7 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
 .tl-h{font-size:13px;margin:14px 0 6px}.tl-name{display:flex;align-items:center;gap:8px;min-width:0}.tl-name svg{flex:none}
 .tl-pick{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start}
 .tl-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
-.tw-warn{margin:8px 0;display:block}.tw-warn div+div{margin-top:6px}
+.tw-warn{margin:8px 0;display:block}.tw-sched{margin:6px 0}.tw-sched summary{cursor:pointer;color:var(--mut)}.tw-sched tr.skip td{opacity:.45}.tw-warn div+div{margin-top:6px}
 .tw-ins{display:flex;gap:12px;align-items:center;background:var(--card2);border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:8px;padding:8px 12px;margin-bottom:10px}
 .tw-ins-art{flex:none}.tw-ins-art svg{display:block}.tw-ins-art text{font:11px Segoe UI,Roboto,Helvetica,Arial,sans-serif;fill:var(--mut)}.tw-ins-txt{min-width:0}.tw-ins .k{color:var(--mut);font-size:12px}.tw-ins .d{color:var(--mut);font-size:12px;margin-top:2px}.tw-ins .d b{color:var(--txt)}.tw-ins-code{color:var(--amber);font-size:20px;font-weight:700}
 .progress{height:8px;background:#0a1020;border-radius:4px;overflow:hidden;margin:8px 0}.progress i{display:block;height:100%;background:var(--green)}
@@ -195,6 +195,7 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
 
   <!-- Threading -->
   <section class="card" data-view="threading"><h2>Thread Wizard <span class="tag blue" id="twTag">External</span></h2>
+    <div class="sidenote hidden" id="twJob" style="margin-bottom:10px;border-left:3px solid #22c55e;padding-left:10px"></div>
     <div class="tw-steps" id="twSteps"></div>
     <div class="tw-sel" id="twSel"></div>
     <div class="tw-body">
@@ -212,8 +213,10 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
           <div class="tw-tool" id="twToolChk"></div>
           <div class="tw-group"><h3>Workpiece</h3>
             <div class="row"><span class="k" id="tStockL">Stock Ø</span><input id="tStock" type="number" min="0" step="any" style="width:100px"><span class="v" id="tStockSt"></span></div>
-            <div class="row"><span class="k" id="tLenL">Thread length</span><input id="tLen" type="number" min="0" step="any" style="width:100px"></div>
-            <div class="sidenote">Set X0 on the centerline and Z0 on the end face. The thread runs from Z0 to minus the length, and the tool retracts clear of the stock Ø.</div>
+            <div class="row"><span class="k">Thread length (in)</span><input id="tLen" type="number" min="0" step="any" style="width:100px"><span class="v" id="tLenMm"></span></div>
+            <div class="row"><span class="k">Start clearance (in)</span><input id="tStart" type="number" min="0" step="any" style="width:100px"><span class="v" id="tStartNote"></span></div>
+            <div class="row"><label class="k" style="display:flex;gap:6px;align-items:center"><input id="tTail" type="checkbox">Tailstock center in the end</label></div>
+            <div class="sidenote">Set X0 on the centerline and Z0 on the end face. Each pass starts the start clearance in front of the end face and runs to minus the length. With the tailstock ticked, the program never moves further out in Z than the start: it pulls the tool away in X instead, so it cannot run into the live center.</div>
           </div>
           <div class="tw-group hidden" id="twTurn"><h3>OD turning program (run first, with a turning tool)</h3>
             <div class="row"><span class="k" id="tDocL">Depth per pass</span><input id="tDoc" type="number" min="0" step="any" style="width:100px"></div>
@@ -223,6 +226,10 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
           </div>
           <div class="row"><span class="k">Threading RPM</span><input id="tRpm" type="number" min="1" step="10" style="width:100px"></div>
           <div class="row"><span class="k" id="tPassL">Max first pass</span><input id="tPass" type="number" min="0" step="any" style="width:100px"></div>
+          <div class="row"><span class="k">Passes</span><input id="tN" type="number" min="1" max="99" step="1" style="width:100px"><span class="v" id="tNNote"></span></div>
+          <div class="sidenote">Enter either the first pass or the number of passes; the other follows. Two spring passes at full depth are always added.</div>
+          <div class="row"><span class="k">Start at pass</span><input id="tFrom" type="number" min="1" step="1" value="1" style="width:100px"><span class="v" id="tFromNote"></span></div>
+          <details class="tw-sched"><summary>Pass schedule</summary><div class="hp-scroll"><table class="hp-t"><thead><tr><th>Pass</th><th>Depth</th><th>X</th><th>Start Z</th></tr></thead><tbody id="twSched"></tbody></table></div></details>
           <div class="row"><span class="k">Major Ø</span><span class="v" id="tMajor">—</span></div>
           <div class="row"><span class="k">Pitch</span><span class="v" id="tPitch">—</span></div>
           <div class="row"><span class="k">Threads per inch</span><span class="v" id="tTpi">—</span></div>
@@ -417,7 +424,15 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
     </tbody></table></div>
     <div class="hp-grid">
       <div class="hp-box"><b>What the display shows</b><div id="hpScreen"></div><div class="sidenote">Three full-width rows sized to read from across the shop: X, Z, then spindle RPM. The digits are about 13 mm tall on a 2.8-inch screen, half as tall again as before. Beside the RPM are the target, a speed bar with the target marked, and the loaded insert; an active alarm replaces the insert. Wi-Fi and CNC status are on the web page and the LEDs.</div>
-      <div class="sidenote" style="margin-top:8px"><b>Tap the screen</b> (anywhere; the three short lines in the X row's corner are the reminder) to open the <b>Settings menu</b>: Zero X, Zero Z, X shows diameter or radius, screen normal or upside down, <b>Colours</b> (swap red and blue, and a dark blue or black background), calibrate touch, <b>View</b> (what fills the screen: everything, RPM only, X only, Z only, or X and Z; choose RPM only until the axis encoders are fitted, and the two axes stop showing zero), <b>Info</b> (firmware version, Wi-Fi address and signal, the .local address, spindle run hours and powered-on hours), Close, and Reboot, which asks you to confirm. It closes on its own after 30 seconds. The very first tap runs the touch calibration instead: press the three crosses as they appear, and the menu opens. At power-up the screen shows a drawn lathe with the firmware version for two seconds. If the colours look wrong (the workpiece in that picture should be brass yellow, and in the menu the squares marked R, G and B should be red, green and blue), open <b>Colours</b> and turn on <b>Swap red / blue</b>. The same screen switches the <b>Background</b> between dark blue and black. The spindle hours count every second the spindle turns, are saved every minute, and are the same figure as the Run hours card on this page. Everything set here is saved; the diameter and upside-down switches are also in the web page's Settings.</div></div>
+      <div class="sidenote" style="margin-top:8px"><b>Tap the screen</b> (anywhere; the three short lines in the corner are the reminder) to open <b>Settings</b>, a title bar with TOOLS and Close, and nine buttons: <b>Set RPM</b>, <b>View</b> (what fills the screen: everything, RPM only, X only, Z only, or X and Z; choose RPM only until the axis encoders are fitted), <b>Colours</b> (swap red and blue, and a dark blue or black background), Zero X, Zero Z, X shows diameter or radius, Screen normal or upside down, Touch calibrate, and <b>Info</b> (firmware version, Wi-Fi address and signal, the .local address, CNC online or offline, spindle run hours and powered-on hours, with the Reboot button, which asks you to confirm). It closes on its own after 30 seconds. The very first tap runs the touch calibration instead: press the three crosses as they appear, and the menu opens.</div>
+      <div class="sidenote" style="margin-top:8px"><b>Setting the speed on the screen.</b> Set RPM opens a keypad; in the RPM only view a tap on the title strip opens it directly. Type the speed and press OK. The knob stays the start and stop: at zero the spindle is off, and as soon as you turn it up the spindle runs at the speed you typed, wherever the knob sits, and the title strip shows PRESET. The Knob key on the keypad (or OK with nothing typed) hands the speed back to the knob. The preset is not saved: after a restart the knob sets the speed again. A target set from this page still overrides both.</div>
+      <div class="sidenote" style="margin-top:8px"><b>Tools (firmware 1.14.0).</b> The <b>TOOLS</b> button in the Settings title bar opens three screens. They stay open until you press Back.</div>
+      <div class="sidenote" style="margin-top:8px"><b>Thread Assist.</b> Press PRESETS and pick one of twelve metric or twelve inch threads; tap LENGTH to type the thread length in inches (the Z DRO key takes it from the Z readout); PASSES steps through 6, 8, 11 or 14 cutting passes, always followed by two spring passes. The screen shows the thread depth and the depth after every pass. <b>SEND</b> makes the G33 program, the same one this page's Thread Wizard writes with its default choices (29.5° flank infeed, 0.2 in start clearance, a stop to try the nut). The ESP32 cannot write a file onto the PC, so the PC fetches it: either <a href="/api/job.nc" download>download it here</a> (the Thread Wizard page shows the link when a program is waiting), or install the <a href="/api/uccnc-macro" download>M20200 macro</a> once and type <code>M20200</code> in UCCNC's MDI line after each SEND. Save the macro as <code>M20200.txt</code> in <code>C:\UCCNC\Profiles\Macro_&lt;your profile&gt;</code>. It is written with this ESP32's address; edit its first line if the address changes. The macro has not been tried on a real UCCNC yet, so check the loaded program in the toolpath view before the first cut. The program is kept until the ESP32 restarts.</div>
+      <div class="sidenote" style="margin-top:8px"><b>Spindle Diagnostics.</b> The speed, how far it is from the target in percent, and the same graph as the RPM view. <b>Stability</b> is how steady the speed was over the last 10 seconds (100 % minus the spread). <b>Accel</b> is the time the spindle took to come within 3 % of the last new speed, and <b>Load</b> is the drive the controller is giving. <b>Sensor</b>, <b>Noise</b> and <b>Missed</b> use the encoder's index pulse (Z, GPIO 6): there must be exactly one turn's worth of A pulses between two index pulses. Fewer are counted as missed pulses, more as noise. With no index wired these show A/B ONLY and dashes. The bar at the bottom sums it up: WITHIN TOLERANCE means within 2 % of the target, at least 98 % stable and no encoder faults. Tap the bar to start the counts again.</div>
+      <div class="sidenote" style="margin-top:8px"><b>Material &amp; Speed.</b> Pick the material (aluminum, steel, stainless, brass), tap TOOL for HSS or carbide and CUT for rough or finish, and give the work diameter (tap WORK DIA to type it, or USE X DRO). The suggested speed is surface speed × 3.82 ÷ diameter in inches, held inside your Min and Max RPM; when the limit cuts in, the line underneath says what the material asked for. The surface speeds are LittleMachineShop's turning figures (HSS: the low end for roughing, the high end for finishing; carbide: their figure for finishing and 70 % of it for roughing). They are starting points: slow down if it chatters. <b>APPLY</b> sets it as the screen preset, so turning the knob up starts the spindle at that speed.</div>
+      <div class="sidenote" style="margin-top:8px"><b>RPM only view.</b> Under the big speed is a graph of the last 37 seconds. The green line is the measured speed, drawn in a window of ±20 % around the target (the dotted line), so a dip when a cut loads the spindle and the recovery are easy to see. The amber line is the drive the controller is giving, from 0 at the bottom to 100 % at the top: under load it climbs while the green line comes back to the target. The line underneath shows the loaded insert (or an alarm) and the drive as LOAD %. Wi-Fi and CNC status moved to Info.</div>
+      <div class="sidenote" style="margin-top:8px"><b>The look of the screens.</b> From firmware 1.12.0 the screens have glowing panels, shaded buttons and icons. These are pictures stored in the firmware (drawn by <code>tools/make_art.py</code>), with the live numbers, values and the graph painted on top. Opening a screen for the first time takes a fraction of a second while its picture is unpacked. From firmware 1.13.0 there is a set for each background, so <b>dark blue</b> and <b>black</b> in Colours both have the glow style. A board without PSRAM shows the plain flat screens.</div>
+      <div class="sidenote" style="margin-top:8px">At power-up the screen shows a drawn lathe with the firmware version for two seconds. If the colours look wrong (the workpiece in that picture should be brass yellow, and in the menu the squares marked R, G and B should be red, green and blue), open <b>Colours</b> and turn on <b>Swap red / blue</b>. The same screen switches the <b>Background</b> between dark blue and black. The spindle hours count every second the spindle turns, are saved every minute, and are the same figure as the Run hours card on this page. Everything set here is saved; the diameter and upside-down switches are also in the web page's Settings.</div></div>
     </div>
   </div>
 
@@ -723,7 +738,7 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
 <div class="toast" id="toast"></div>
 <script>
 // Bump WEB_VERSION with every page change and record it in CHANGELOG.md. FW_MIN is the oldest firmware this page works fully with.
-const WEB_VERSION='1.21.1',FW_MIN='1.4.0';
+const WEB_VERSION='1.25.0',FW_MIN='1.4.0';
 // Interface board revision. hardware/make_pcb.py writes it here; every board file name carries it.
 const BOARD_REV='F';
 document.querySelectorAll('a.hwf').forEach(a=>{const n='board_rev'+BOARD_REV+'_'+a.dataset.f;a.href='hw/'+n;a.download=n;a.textContent=n});document.querySelectorAll('.hwrev').forEach(e=>e.textContent=BOARD_REV);
@@ -825,7 +840,7 @@ function render(){const s=st;
  const r=s.rssi||0;$('rssi').textContent=r?r+' dBm ('+Math.min(100,Math.max(0,2*(r+100)))+'%)':'—';$('ip').textContent=s.ip||'—';$('host').textContent=s.host||'—';$('hdrHost').textContent=s.host||'';$('hdrIp').textContent=s.ip||'';$('link').textContent='http://'+(s.ip||'');$('link').href='http://'+(s.ip||'');
  $('wifiTag').textContent=sim?'Demo':'Connected';$('bWifi').title=$('rssi').textContent;$('fw').textContent='v'+(s.fw||'');
  $('hdrVer').textContent='Firmware v'+(s.fw||'—')+' · Page v'+WEB_VERSION;$('webVer').textContent='v'+WEB_VERSION;const old=!!s.fw&&verLt(s.fw,FW_MIN);$('fwOld').textContent=old?'This page needs firmware v'+FW_MIN+' or newer. Upload the new firmware.bin below.':'';$('fwOld').classList.toggle('hidden',!old);
- tlHeader();
+ tlHeader();jobShow(s.job||0);
  $('recTag').textContent=s.rec?'Recording: '+s.recName:(s.play?'Playing: '+s.recName:(s.recName?'Loaded: '+s.recName:'Idle'));$('bRec').disabled=!!s.rec;
  lvClock();if(s.play||s.rec)drawRec(s.recT||0);lvDraw();
  $('dlCsv').href='/api/recording.csv?name='+encodeURIComponent(s.recName||'');$('dlNc').href='/api/recording.nc?name='+encodeURIComponent(s.recName||'');
@@ -914,7 +929,7 @@ function tiHolderSvg(h,code){const W=620,k=Math.min(15,150/h.b),x0=50,y0=54,mm=T
  '<path d="M'+(X(neck)-2)+' '+yS+'V'+(yS+thick)+'" stroke="#1e293b"/>'+
  dim(xEnd+18,yS,xEnd+18,yS+hB,'H '+h.b+' mm',xEnd+36,yS+hB/2,true)+'</svg>'}
 const TW_DEF_RPM=200,TW_MAX_IPM=60,TW_INFEED_OFF=.5;
-let tw={step:1,form:null,size:null,pi:0};
+let tw={step:1,form:null,size:null,pi:0,passMode:'count'};   // passMode: which of first pass / passes the user typed last
 const twF=()=>TW_FORMS[tw.form],twMetric=()=>!!tw.form&&twF().u==='mm';
 const twFmt=mm=>twMetric()?mm.toFixed(3)+' mm':(mm/25.4).toFixed(4)+' in';
 const twBoth=mm=>twMetric()?mm.toFixed(3)+' mm ('+(mm/25.4).toFixed(4)+' in)':(mm/25.4).toFixed(4)+' in ('+mm.toFixed(3)+' mm)';
@@ -923,8 +938,8 @@ function twCur(){if(!tw.form||tw.size===null)return null;const f=twF(),inMm=f.u=
  if(tw.size==='custom'){const a=+val('cMajor'),b=+val('cPitch');if(!(a>0&&b>0))return null;major=a*inMm;pv=b;pitch=f.pu==='tpi'?25.4/b:b;name=f.n+' Ø'+a+(f.u==='mm'?' mm':' in')+' × '+b+(f.pu==='tpi'?' TPI':' mm');series='Custom'}
  else{const r=f.rows[tw.size];major=r[1]*inMm;pv=r[tw.pi+2];pitch=f.pu==='tpi'?25.4/pv:pv;name=f.nm(r,pv,tw.pi);series=f.ser[Math.min(tw.pi,f.ser.length-1)]}
  const h=f.h(pitch);if(2*h>=major)return null;return {f,major,pitch,pv,name,series,h,root:major-2*h,pd:major-f.pd*pitch}}
-function twDefaults(){const c=twCur();if(!c)return;const m=twMetric();$('tLen').value=m?Math.round(2*c.major):(Math.ceil(2*c.major/25.4*20)/20).toFixed(2);
- const lim=c.f.code?.4:.1;$('tPass').value=m?lim:(lim/25.4).toFixed(4);$('tRpm').value=Math.min(TW_DEF_RPM,Math.floor(TW_MAX_IPM*.66*25.4/c.pitch/10)*10);
+function twDefaults(){const c=twCur();if(!c)return;const m=twMetric();$('tLen').value=(Math.ceil(2*c.major/25.4*20)/20).toFixed(2);$('tStart').value=twStartDef(c).toFixed(2);$('tFrom').value=1;
+ const lim=c.f.code?.4:.1,lin=!c.f.code;$('tPass').value=m?lim:(lim/25.4).toFixed(4);$('tN').value=Math.min(99,Math.max(11,lin?Math.ceil(c.h/lim):Math.ceil(Math.pow(c.h/lim,2))));tw.passMode='count';$('tRpm').value=Math.min(TW_DEF_RPM,Math.floor(TW_MAX_IPM*.66*25.4/c.pitch/10)*10);
  $('tStock').value=m?+c.major.toFixed(3):+(c.major/25.4).toFixed(4);$('tDoc').value=m?.5:.02;$('tFeed').value=.005;$('tTurnRpm').value=TW_turnRpm(c.major)}
 // 200 SFM starting point, limited by the machine's Max RPM.
 function TW_turnRpm(mm){return Math.min(st.maxRpm>0?st.maxRpm:2000,Math.max(100,Math.round(200*3.82/(mm/25.4)/10)*10))}
@@ -933,6 +948,7 @@ function twStock(c){const v=+val('tStock'),mm=twMetric()?v:v*25.4;if(!(mm>0))ret
 function twTurnLen(c,lenIn){return lenIn+Math.max(2*c.pitch,3)/25.4}
 function twPick(k,v){if(k==='form'&&v!==tw.form){tw.size=null;tw.pi=0}tw[k]=v;const f=twF();
  if(k==='size'){tw.pi=0;if(v==='custom'){const r=f.rows[Math.floor(f.rows.length/2)];$('cMajor').value=r[1];$('cPitch').value=r[2]}twDefaults()}
+ if(k==='pi')twDefaults();   // the pitch sets the default speed, passes and start clearance
  tw.step=k==='form'?2:k==='size'?(v!=='custom'&&f.rows[v].length===3?4:3):4;twRender()}
 function twGo(n){if(n>=1&&n<=twMaxStep()){tw.step=n;twRender()}}
 const twMaxStep=()=>!tw.form?1:tw.size===null?2:!twCur()?3:4;
@@ -952,20 +968,43 @@ function twInsert(c){const f=c.f,beta=Math.atan(c.pitch/(Math.PI*c.pd))*180/Math
 function twToolFits(name,c,ins){if(ins.code&&tlKey(name).includes(tlKey(ins.code)))return true;const m=/(\d+)\s*ER\s*(AG|A|G|N)(60|55)/i.exec(name);if(!m||!c.f.part||m[3]!==c.f.part)return false;const a=(TW_PART[m[1]]||[]).find(x=>x[0]===m[2].toUpperCase());return !!a&&c.pitch>=a[1]-1e-6&&c.pitch<=a[2]+1e-6}
 function twInsertArt(c,ins){const f=c.f,fk=tw.form;if(!f.code)return '<svg viewBox="0 0 124 150" width="124" role="img" aria-label="Square threading tool, side view"><rect x="44" y="6" width="36" height="104" fill="#94a3b8" stroke="#475569"/><rect x="50" y="110" width="24" height="24" fill="#94a3b8" stroke="#475569"/><text x="62" y="148" text-anchor="middle" style="font-size:11px">Width = P / 2</text></svg>';
  const shown=ins.code||(ins.alt)||(ins.need&&ins.need.code),part=!ins.code&&!!ins.alt;return tiSvg(fk,part,136,f.ang+' tooth')+(shown?'':'')}
-function twPasses(c){const v=+val('tPass'),lim=twMetric()?v:v*25.4,lin=!c.f.code;if(!(lim>0))return null;const n=Math.max(11,lin?Math.ceil(c.h/lim):Math.ceil(Math.pow(c.h/lim,2)));
- const d=[];for(let i=1;i<=n;i++)d.push(lin?c.h*i/n:c.h*Math.sqrt(i/n));return d}
-// Same program layout as threadProgram() in main.cpp, with the depth and infeed taken from the selected form.
-function twGcode(c){const ds=twPasses(c),m=twMetric(),lenIn=(+val('tLen'))/(m?25.4:1),rpm=Math.round(+val('tRpm')),K=c.pitch/25.4,inf=Math.max(0,c.f.trail-TW_INFEED_OFF),tan=Math.tan(inf*Math.PI/180),startZ=Math.max(.2,2.5*K),stk=twStock(c),clearX=(Math.max(stk.mm,c.major)+2)/25.4,ins=twInsert(c);
- let g='('+c.name+' external thread, '+c.major.toFixed(2)+' x '+c.pitch.toFixed(3)+' mm, '+lenIn.toFixed(3)+' in long)\n('+(ins.code?'Insert '+ins.code+' in '+ins.holder.n:c.f.code?(ins.alt?'Partial insert '+ins.alt+' in '+ins.holder.n:'No insert for '+ins.holder.n+(ins.need?' - needs '+ins.need.code:'')):'Square tool, width '+(c.pitch/2/25.4).toFixed(4)+' in')+', infeed '+inf.toFixed(1)+' deg)\n(INCH UCCNC profile - X in diameter - Z0 = end face - blank '+((c.major-.05)/25.4).toFixed(4)+' in, stock '+(stk.mm/25.4).toFixed(4)+' in)\n'+(st.tool?'(Loaded when generated: '+twGcodeSafe(st.tool)+')\n':'')+(stk.state==='over'?'(STOCK IS OVER THE THREAD MAJOR - TURN TO BLANK DIAMETER '+((c.major-.05)/25.4).toFixed(4)+' IN FIRST)\nM0\n':'')+'G90 G18 G40\nM3 S'+rpm+'\nG4 P2\nG0 X'+clearX.toFixed(4)+' Z'+startZ.toFixed(3)+'\n';
+// Pass depths in mm. Insert threads take equal chip area per pass (depth grows with the square root of the pass number);
+// square-tool threads take equal depth per pass. Either the pass count or the first pass decides, whichever was typed last.
+function twPasses(c){const lin=!c.f.code;let n;
+ if(tw.passMode==='count'){n=Math.round(+val('tN'));if(!(n>=1))return null}
+ else{const v=+val('tPass'),lim=twMetric()?v:v*25.4;if(!(lim>0))return null;n=lin?Math.ceil(c.h/lim-1e-9):Math.ceil(Math.pow(c.h/lim,2)-1e-9)}
+ n=Math.min(99,Math.max(1,n));const d=[];for(let i=1;i<=n;i++)d.push(lin?c.h*i/n:c.h*Math.sqrt(i/n));return d}
+const twLenIn=()=>+val('tLen');
+// Two pitches of run-up is plenty at threading speeds; 0.08 in minimum. Small, so a tailstock center fits in front of the work.
+const twStartDef=c=>Math.max(.08,Math.ceil(2*c.pitch/25.4*100)/100);
+// Diameter the tool parks at when a tailstock is in: 1 in more than the retract, so a nut can go on for the fit check.
+const twParkX=c=>twClearX(c)+1;
+const twClearX=c=>(Math.max(twStock(c).mm,c.major)+2)/25.4;
+const twFromPass=n=>Math.min(n,Math.max(1,Math.round(+val('tFrom'))||1));
+// Thread program. The firmware's threadProgram() in main.cpp (Thread Assist on the touch screen, /api/thread.nc) is this with the default choices
+// layout; this one adds the pass count, start clearance, tailstock-safe moves and starting at a later pass.
+function twGcode(c){const ds=twPasses(c),n=ds.length,lenIn=twLenIn(),rpm=Math.round(+val('tRpm')),K=c.pitch/25.4,inf=Math.max(0,c.f.trail-TW_INFEED_OFF),tan=Math.tan(inf*Math.PI/180),startZ=+val('tStart'),stk=twStock(c),clearX=twClearX(c),parkX=twParkX(c),tail=$('tTail').checked,from=twFromPass(n),ins=twInsert(c);
+ let g='('+c.name+' external thread, '+c.major.toFixed(2)+' x '+c.pitch.toFixed(3)+' mm, '+lenIn.toFixed(3)+' in long)\n('+(ins.code?'Insert '+ins.code+' in '+ins.holder.n:c.f.code?(ins.alt?'Partial insert '+ins.alt+' in '+ins.holder.n:'No insert for '+ins.holder.n+(ins.need?' - needs '+ins.need.code:'')):'Square tool, width '+(c.pitch/2/25.4).toFixed(4)+' in')+', infeed '+inf.toFixed(1)+' deg)\n(INCH UCCNC profile - X in diameter - Z0 = end face - blank '+((c.major-.05)/25.4).toFixed(4)+' in, stock '+(stk.mm/25.4).toFixed(4)+' in)\n'+
+  '('+n+' passes + 2 spring passes - first pass '+(ds[0]/25.4).toFixed(4)+' in - start '+startZ.toFixed(3)+' in in front of the end face)\n'+
+  (tail?'(TAILSTOCK MODE - Z never goes past the start - the tool parks at X'+parkX.toFixed(4)+')\n':'')+
+  (from>1?'(STARTS AT PASS '+from+' OF '+n+' - passes 1 to '+(from-1)+' were cut before - keep the same X and Z zero)\n':'')+
+  (st.tool?'(Loaded when generated: '+twGcodeSafe(st.tool)+')\n':'')+(stk.state==='over'&&from===1?'(STOCK IS OVER THE THREAD MAJOR - TURN TO BLANK DIAMETER '+((c.major-.05)/25.4).toFixed(4)+' IN FIRST)\nM0\n':'')+
+  'G90 G18 G40\nM3 S'+rpm+'\nG4 P2\nG0 X'+(tail?parkX:clearX).toFixed(4)+'\nG0 Z'+startZ.toFixed(4)+'\n'+(tail?'G0 X'+clearX.toFixed(4)+'\n':'');
+ // Out in X first, then along Z: never a diagonal rapid past the end of the work.
+ const away=()=>tail?'G0 X'+parkX.toFixed(4)+'\n':'G0 Z'+Math.max(.4,startZ+.2).toFixed(3)+'\n';
  const pass=(l,d)=>{g+='('+l+' depth '+(d/25.4).toFixed(4)+')\nG0 Z'+(startZ-d*tan/25.4).toFixed(4)+'\nG0 X'+((c.major-2*d)/25.4).toFixed(4)+'\nG33 Z-'+lenIn.toFixed(3)+' K'+K.toFixed(6)+' Q0\nG0 X'+clearX.toFixed(4)+'\n'};
- const fit=Math.round(ds.length*8/11);ds.forEach((d,i)=>{if(i===fit)g+='(FIT CHECK)\nG0 Z0.4\nM5\nM0\nM3 S'+rpm+'\nG4 P2\nG0 Z'+startZ.toFixed(3)+'\n';pass('PASS '+(i+1),d)});
- pass('SPRING 1',ds[ds.length-1]);pass('SPRING 2',ds[ds.length-1]);return g+'G0 Z0.4\nM5\nM30\n'}
+ const fit=Math.round(n*8/11);ds.forEach((d,i)=>{if(i<from-1)return;if(i===fit&&fit>from-1&&fit>0)g+='(FIT CHECK'+(tail?' - back the tailstock off to try the nut, then bring it back':'')+')\n'+away()+'M5\nM0\nM3 S'+rpm+'\nG4 P2\nG0 Z'+startZ.toFixed(4)+'\n';pass('PASS '+(i+1),d)});
+ pass('SPRING 1',ds[n-1]);pass('SPRING 2',ds[n-1]);return g+away()+'M5\nM30\n'}
 const twGcodeSafe=s=>String(s).replace(/[()]/g,' ');   // parentheses would end a G-code comment early
 // Separate program, because the threading insert cannot turn the OD and a tool change here would lose the zero.
-function twTurnGcode(c){const stk=twStock(c),m=twMetric(),lenIn=(+val('tLen'))/(m?25.4:1),L=twTurnLen(c,lenIn),blank=(c.major-.05)/25.4,start=stk.mm/25.4,clear=start+2/25.4,doc=(+val('tDoc'))/(m?25.4:1),rpm=Math.round(+val('tTurnRpm')),F=rpm*(+val('tFeed'));
+function twTurnGcode(c){const stk=twStock(c),m=twMetric(),lenIn=twLenIn(),L=twTurnLen(c,lenIn),blank=(c.major-.05)/25.4,start=stk.mm/25.4,clear=start+2/25.4,doc=(+val('tDoc'))/(m?25.4:1),rpm=Math.round(+val('tTurnRpm')),F=rpm*(+val('tFeed'));
  let g='(OD turning for '+c.name+': stock '+start.toFixed(4)+' to blank '+blank.toFixed(4)+' in, '+L.toFixed(3)+' in long)\n(Use a turning tool - X0 centerline - Z0 end face)\nG90 G18 G40 G94\nM3 S'+rpm+'\nG4 P2\nG0 X'+clear.toFixed(4)+' Z0.100\n';
  const n=Math.max(1,Math.ceil((start-blank)/(2*doc)-1e-9));for(let i=1;i<=n;i++){const x=i===n?blank:start-2*doc*i;g+='(PASS '+i+')\nG0 X'+x.toFixed(4)+'\nG1 Z-'+L.toFixed(3)+' F'+F.toFixed(2)+'\nG0 X'+clear.toFixed(4)+'\nG0 Z0.100\n'}return g+'G0 Z0.400\nM5\nM30\n'}
-function twDownload(turn){const c=twCur();if(!c)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([turn?twTurnGcode(c):twGcode(c)],{type:'text/plain'}));a.download=(turn?'turn_':'thread_')+c.name.replace(/[^A-Za-z0-9.]+/g,'_')+'.nc';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+// Program sent with SEND on the touch screen's Thread Assist: the ESP32 keeps it until it restarts.
+let jobSeen=-1;
+async function jobShow(id){if(id===jobSeen||sim)return;jobSeen=id;const el=$('twJob');if(!id){el.classList.add('hidden');return}
+ try{const j=await(await fetch('/api/job')).json();el.innerHTML='<b>From the touch screen:</b> '+twEsc(j.name)+' thread program (job '+j.id+'). <a href="/api/job.nc" download>Download the G-code</a>, or in UCCNC run the <a href="/api/uccnc-macro" download>M20200 macro</a> to load it without leaving UCCNC.';el.classList.remove('hidden')}catch(e){jobSeen=-1}}
+function twDownload(turn){const c=twCur();if(!c)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([turn?twTurnGcode(c):twGcode(c)],{type:'text/plain'}));const fp=turn?1:twFromPass((twPasses(c)||[1]).length);a.download=(turn?'turn_':'thread_')+c.name.replace(/[^A-Za-z0-9.]+/g,'_')+(fp>1?'_from_pass'+fp:'')+'.nc';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 // ---- tools: the list and the loaded tool live on the ESP32 ----
 let tools=[],toolsOk=true;
 const tlKey=s=>String(s).replace(/\s/g,'').toUpperCase();
@@ -999,6 +1038,15 @@ async function tlDel(id){const t=tools.find(x=>x.id===id);if(!t||!confirm('Delet
 // Marks the insert the wizard asks for as loaded, adding it to the list when it is new.
 async function tlUseInsert(code){const h=tlHolder().n,name=h+' + '+code;let t=tools.find(x=>x.holder===h&&x.insert===code)||tools.find(x=>x.name===code);
  if(!t){t={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),kind:'Threading',holder:h,insert:code,name,note:''};tools.push(t);if(!await tlSave()){tools.pop();return}}tlLoad(t.id)}
+// Shows the field the user did not type in, the length in mm, and the pass schedule.
+function twPassSync(c,ds,startZ){const m=twMetric(),L=twLenIn();$('tLenMm').textContent=L>0?(L*25.4).toFixed(2)+' mm':'';
+ $('tStartNote').textContent=startZ>0?(startZ*25.4).toFixed(2)+' mm · '+(startZ*25.4/c.pitch).toFixed(1)+' pitches':'';
+ if(!ds){$('twSched').innerHTML='';$('tNNote').textContent='';$('tFromNote').textContent='';return}
+ const n=ds.length,from=twFromPass(n);$('tFrom').max=n;
+ if(tw.passMode==='depth'){if(document.activeElement!==$('tN'))$('tN').value=n}else if(document.activeElement!==$('tPass'))$('tPass').value=m?ds[0].toFixed(3):(ds[0]/25.4).toFixed(4);
+ $('tNNote').textContent='+ 2 spring = '+(n+2-from+1)+' cuts';$('tFromNote').textContent=from>1?'skips passes 1–'+(from-1):'from the start';
+ const f=c.f,tan=Math.tan(Math.max(0,f.trail-TW_INFEED_OFF)*Math.PI/180),row=(l,d,skip)=>'<tr'+(skip?' class="skip"':'')+'><td>'+l+'</td><td>'+(d/25.4).toFixed(4)+' in</td><td>X'+((c.major-2*d)/25.4).toFixed(4)+'</td><td>Z'+(startZ-d*tan/25.4).toFixed(4)+'</td></tr>';
+ $('twSched').innerHTML=ds.map((d,i)=>row(i+1,d,i<from-1)).join('')+row('Spring 1',ds[n-1])+row('Spring 2',ds[n-1])}
 function twRender(){const m=twMetric(),c=twCur(),max=twMaxStep(),f=tw.form?twF():null;
  $('twSteps').innerHTML=['Type','Size','Pitch','Review'].map((s,i)=>'<button class="'+(tw.step===i+1?'on':i+1<max||(i+1===max&&i+1<tw.step)?'done':'')+'"'+(i+1>max?' disabled':'')+' onclick="twGo('+(i+1)+')">'+(i+1)+'. '+s+'</button>').join('');
  const ins=c?twInsert(c):null,pTxt=c?(f.pu==='tpi'?c.pv+' TPI':c.pv+' mm'):'';
@@ -1011,9 +1059,9 @@ function twRender(){const m=twMetric(),c=twCur(),max=twMaxStep(),f=tw.form?twF()
  const cust=tw.size==='custom';$('twCustom').classList.toggle('hidden',!cust);$('twPitches').classList.toggle('hidden',cust);$('twP3q').textContent=cust?'Enter the custom thread':'Which pitch?';
  if(f){$('twCMajL').textContent='Major Ø ('+f.u+')';$('twCPitL').textContent=f.pu==='tpi'?'Threads per inch':'Pitch (mm)'}
  if(f&&tw.size!==null&&!cust){const r=f.rows[tw.size];$('twPitches').innerHTML=r.slice(2).map((p,i)=>twTile(tw.pi===i,"twPick('pi',"+i+")",f.pu==='tpi'?p+' TPI':p+' mm',f.ser[Math.min(i,f.ser.length-1)]+(i===0&&f.ser.length>1?' (standard)':''))).join('')}
- if(f){$('tLenL').textContent='Thread length ('+f.u+')';$('tPassL').textContent=(f.code?'Max first pass':'Depth per pass')+' ('+f.u+')'}
+ if(f)$('tPassL').textContent=(f.code?'Max first pass':'Depth per pass')+' ('+f.u+')';
  $('twBack').classList.toggle('hidden',tw.step===1);$('twNext').classList.toggle('hidden',tw.step===4);$('twNext').disabled=tw.step+1>max;$('twDl').classList.toggle('hidden',tw.step!==4);
- const lenIn=(+val('tLen'))/(m?25.4:1),rpm=+val('tRpm'),ds=c?twPasses(c):null,stk=c?twStock(c):{state:'none'},ok=!!(c&&lenIn>0&&rpm>0&&ds&&!f.noG&&stk.state!=='none'&&stk.state!=='small');$('twDl').disabled=!ok;
+ const lenIn=twLenIn(),rpm=+val('tRpm'),ds=c?twPasses(c):null,startZ=+val('tStart'),stk=c?twStock(c):{state:'none'},ok=!!(c&&lenIn>0&&rpm>0&&ds&&startZ>0&&!f.noG&&stk.state!=='none'&&stk.state!=='small');$('twDl').disabled=!ok;
  const over=stk.state==='over'&&!(f&&f.noG),turnOk=over&&lenIn>0&&+val('tDoc')>0&&+val('tFeed')>0&&+val('tTurnRpm')>0;$('twDl').textContent=c&&f.noG?'G-code not available for tapers':over?'2. Thread (.nc)':'Download G-code (.nc)';
  $('twTurn').classList.toggle('hidden',!over);$('twDlTurn').classList.toggle('hidden',!over||tw.step!==4);$('twDlTurn').disabled=!turnOk;$('twDl').style.marginLeft=over?'':'auto';
  if(f){$('tStockL').textContent='Stock Ø ('+f.u+')';$('tDocL').textContent='Depth per pass ('+f.u+')'}
@@ -1022,21 +1070,26 @@ function twRender(){const m=twMetric(),c=twCur(),max=twMaxStep(),f=tw.form?twF()
   const iIns=twInsert(c),iCode=iIns.code||iIns.alt,lt=st.tool||'',match=!!(lt&&f.code&&twToolFits(lt,c,iIns));$('twToolChk').className='tw-tool '+(match?'ok':lt||iCode?'bad':'');
   $('twToolChk').innerHTML=!iCode?(lt?'Loaded tool: <b>'+twEsc(lt)+'</b>. Check that it suits this thread.':'No tool is marked as loaded.'):match?'✓ <b>'+twEsc(lt)+'</b> is loaded and suits this thread':(lt?'⚠ <b>'+twEsc(lt)+'</b> is loaded, but this thread needs <b>'+iCode+'</b>':'⚠ No tool is marked as loaded. This thread needs <b>'+iCode+'</b>')+' <button onclick="tlUseInsert(\''+iCode+'\')">Mark '+iCode+' as loaded</button>'}
  if(c){$('tMajor').textContent=twBoth(c.major);$('tPitch').textContent=twBoth(c.pitch);$('tTpi').textContent=(25.4/c.pitch).toFixed(2);$('tPd').textContent=twBoth(c.pd);$('tRoot').textContent=twBoth(c.root);$('tDepth').textContent=twBoth(c.h);$('tBlank').textContent=twBoth(c.major-.05);
-  $('tInfeed').textContent=f.noG?'—':Math.max(0,f.trail-TW_INFEED_OFF).toFixed(1)+'° '+(f.trail?'along the tailstock-side flank':'(straight in)');$('tFirst').textContent=ds?twBoth(ds[0])+' · '+ds.length+' + 2 spring passes':'—';
+  $('tInfeed').textContent=f.noG?'—':Math.max(0,f.trail-TW_INFEED_OFF).toFixed(1)+'° '+(f.trail?'along the tailstock-side flank':'(straight in)');$('tFirst').textContent=ds?twBoth(ds[0])+' · '+ds.length+' + 2 spring passes':'—';twPassSync(c,ds,startZ);
   $('twIns').innerHTML='<div class="tw-ins-art">'+twInsertArt(c,ins)+'</div><div class="tw-ins-txt"><div class="k">'+(f.code?'Indexable insert for your '+ins.holder.n:'Cutting tool to use')+'</div>'+
    (ins.code?'<div class="tw-ins-code">'+ins.code+'</div><div class="d">'+TW_IC[ins.size]+' inscribed circle · external right-hand · full profile · three cutting edges</div>'+(ins.alt?'<div class="d">Partial-profile option: <b>'+ins.alt+'</b> (does not form the crest, so turn the OD to size first)</div>':''):
     ins.alt?'<div class="tw-ins-code">'+ins.alt+'</div><div class="d">Partial profile: this holder has no full-form insert for this pitch. It does not form the crest, so turn the OD to size first.</div>'+(ins.need?'<div class="d">Full-form option: <b>'+ins.need.code+'</b>'+(ins.need.holder?' in a '+ins.need.holder:'')+'.</div>':''):
     f.code?'<div class="tw-ins-code" style="color:var(--red)">No insert fits this holder</div><div class="d">'+(ins.need?'This pitch needs <b>'+ins.need.code+'</b>'+(ins.need.holder?', which fits a <b>'+ins.need.holder+'</b> holder':'')+'.':'The catalog has no insert for this pitch. Use a ground tool.')+'</div>':
     '<div class="tw-ins-code">Ground HSS or grooving insert</div><div class="d">No laydown insert exists for square threads. Tool width <b>'+twFmt(c.pitch/2)+'</b>, with side clearance beyond the '+ins.beta.toFixed(1)+'° helix.</div>')+
    (f.code?'<div class="d">Helix '+ins.beta.toFixed(2)+'° · '+ins.anvil+'</div><div class="d">Add a grade: MXC or P25C for steel, BMA for stainless, K20 for aluminum.</div>':'')+'</div>'}
- ['tRpm','tPass'].forEach(i=>$(i).parentElement.classList.toggle('hidden',!!(f&&f.noG)));
+ ['tRpm','tPass','tN','tFrom','tStart'].forEach(i=>$(i).parentElement.classList.toggle('hidden',!!(f&&f.noG)));
  const w=[];if(c){if(!(lenIn>0))w.push('Enter a thread length greater than zero.');
   if(!f.noG&&stk.state==='small')w.push('The stock is at or below the thread root Ø of '+twFmt(c.root)+', so no thread can be formed.');
   if(!f.noG&&stk.state==='over')w.push('Run the OD turning program first with a turning tool, then re-zero X and Z with the threading tool. The thread program pauses at the start as a reminder.');
   if(!f.noG&&stk.state==='under')w.push('The stock is under the thread major Ø of '+twFmt(c.major)+', so the first passes cut air and the crests stay short of full height.');
   const zm=parseFloat(val('s_zMin')),xm=parseFloat(val('s_xMax'));if(!f.noG&&lenIn>0&&zm<0&&-(over?twTurnLen(c,lenIn):lenIn)<zm)w.push('The cut reaches past the Z soft limit of '+zm+' in set in Settings.');if(!f.noG&&stk.mm>0&&(Math.max(stk.mm,c.major)+2)/25.4>xm)w.push('The retract position is past the X soft limit of '+xm+' in set in Settings.');if(!(rpm>0))w.push('Enter a spindle speed.');if(!ds)w.push('Enter a pass depth greater than zero.');
   if(f.noG)w.push('NPT is tapered 1:16, and this page generates straight threads only. The insert is shown for reference, and the diameters are nominal pipe OD.');
-  if(lenIn*25.4>4*c.major)w.push('This thread is more than 4× its diameter long. Support the work with a tailstock to limit deflection.');
+  if(lenIn*25.4>4*c.major&&!$('tTail').checked)w.push('This thread is more than 4× its diameter long. Support the work with a tailstock to limit deflection, and tick Tailstock center above.');
+  if(!f.noG&&ds&&startZ>0){const inf=Math.max(0,f.trail-TW_INFEED_OFF),deep=startZ-c.h*Math.tan(inf*Math.PI/180)/25.4,K=c.pitch/25.4;if(deep<K)w.push('At full depth the flank infeed moves the start to '+deep.toFixed(3)+' in from the end face, less than one pitch ('+K.toFixed(4)+' in) of run-up. Raise the start clearance so Z is up to speed before the tool reaches the work.')}
+  if(!(startZ>0))w.push('Enter a start clearance greater than zero.');
+  if(!f.noG&&ds&&(f.code?ds[0]>.25:ds[0]>.1))w.push((f.code?'The first pass is ':'Each pass is ')+twBoth(ds[0])+', heavy for a small lathe. More passes give lighter cuts.');
+  if(!f.noG&&ds&&+val('tFrom')>ds.length)w.push('Start at pass is past the last pass ('+ds.length+'). The program starts at pass '+ds.length+'.');
+  if(!f.noG&&$('tTail').checked&&twParkX(c)>xm)w.push('The tailstock park position X'+twParkX(c).toFixed(3)+' is past the X soft limit of '+xm+' in set in Settings.');
   if(rpm*c.pitch/25.4>TW_MAX_IPM)w.push('Z feed would be '+Math.round(rpm*c.pitch/25.4)+' in/min. Lower the spindle speed if this is near your Z axis limit.');
   if(f.code&&!ins.code&&!ins.alt)w.push('No insert for this pitch fits your '+ins.holder.n+'. Check the insert panel above before running this program.');
   if(ins.steep)w.push('This thread\'s helix is '+ins.beta.toFixed(1)+'°, and your '+ins.holder.n+' has no anvil to adjust the 1.5° lean. Check for flank rubbing, or use a holder that takes an anvil.');
@@ -1070,7 +1123,8 @@ function twDraw(c){if(!c){$('twFig').innerHTML='<svg viewBox="0 0 480 290" role=
  '<rect x="40" y="258" width="200" height="10" rx="2" fill="#475569"/><text x="246" y="268" class="m">'+(m?'25 mm':'1 in')+' reference</text>'+
  '<text x="10" y="285" class="m">Scaled to fit, pitch and diameter in true proportion. Rounded forms drawn with flats.</text></svg>'}
 ['cMajor','cPitch'].forEach(i=>$(i).addEventListener('input',()=>{twDefaults();twRender()}));$('tStock').addEventListener('input',()=>{const c=twCur();if(c){const s=twStock(c);if(s.mm>0)$('tTurnRpm').value=TW_turnRpm(s.mm)}});
-['tLen','tPass','tRpm','tStock','tDoc','tFeed','tTurnRpm'].forEach(i=>$(i).addEventListener('input',twRender));twRender();
+['tLen','tRpm','tStock','tDoc','tFeed','tTurnRpm','tStart','tFrom'].forEach(i=>$(i).addEventListener('input',twRender));$('tTail').addEventListener('change',twRender);
+$('tPass').addEventListener('input',()=>{tw.passMode='depth';twRender()});$('tN').addEventListener('input',()=>{tw.passMode='count';twRender()});twRender();
 // ---- settings / OTA ----
 async function loadSettings(){try{const s=await (await fetch('/api/settings')).json();st.maxRpm=s.maxRpm;for(const k in s){const el=$('s_'+k);if(el)el.value=s[k]}}catch(e){}axResUpdate()}
 async function saveSettings(reboot){const o={reboot};['ssid','pass','host','manifest'].forEach(k=>o[k]=val('s_'+k));['ppr','xPpr','xLead','zPpr','zLead','maxRpm','minRpm','kp','ki','xMin','xMax','zMin','zMax','ledRgb','ledBlue'].forEach(k=>o[k]=+val('s_'+k));['knob','xInv','zInv','xDia','blueLow','dispFlip'].forEach(k=>o[k]=val('s_'+k)==='true');

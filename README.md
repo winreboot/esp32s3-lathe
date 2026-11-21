@@ -1,62 +1,197 @@
-# ESP32-S3 CNC Lathe Control
+<p align="center"><img src="docs/banner.png" alt="ESP32-S3 Lathe Controller: the RPM view, Thread Assist and Spindle Diagnostics screens" width="100%"></p>
 
-Web dashboard served by an ESP32-S3 on the lathe: live DRO, spindle gauge and closed-loop speed control, Wi-Fi, OTA updates, recording/playback with G-code export, threading presets, surface-speed calculator, run hours, job notes, events and alarms.
+# ESP32-S3 Lathe Controller
 
-Builds with Arduino-ESP32 core 2.0.x (PlatformIO `espressif32 @ 6.9.0`) and the libraries in `platformio.ini`. The full build guide, wiring diagram and parts list are under **Help** on the dashboard; the same guide with pictures is in [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md). Version history is in `CHANGELOG.md`.
+A touch screen and a Wi-Fi dashboard for a CNC-converted mini lathe. An ESP32-S3 reads encoders on the spindle and on both slides, holds the spindle speed in a closed loop through the lathe's own speed-pot input, and shows it all on a 2.8 in touch display at the machine and in any browser.
 
-## What the ESP32 does, and doesn't
-| Feature | How |
+It was built for a Vevor MX-210V (8 × 16) mini lathe converted to CNC with UCCNC, a UC100 and a Gecko G540, and works next to the motion controller: it never drives the steppers.
+
+**Firmware 1.14.0 · web page 1.25.0** · [Download](https://github.com/winreboot/esp32s3-lathe/releases) · [Build guide](docs/BUILD_GUIDE.md) · [What changed](CHANGELOG.md)
+
+## On the screen
+
+Every screen has glowing panels, shaded buttons and icons, drawn once on a PC (`tools/make_art.py`) and stored in the firmware; the live numbers, values and graphs are painted on top. The pictures below are made from the same artwork with sample values.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screens/rpm.png" alt="RPM view"><br><b>RPM view.</b> The speed in large digits, direction, the preset, and a 37-second graph: green is the measured speed, amber the drive. Under load you see the dip and the recovery.</td>
+<td width="50%"><img src="docs/screens/main.png" alt="Everything view"><br><b>Everything.</b> X (diameter or radius), Z and the spindle, with the set speed, a speed bar and the loaded tool.</td>
+</tr>
+<tr>
+<td><img src="docs/screens/menu.png" alt="Settings menu"><br><b>Settings.</b> A tap anywhere opens it. Nine buttons show their current value; <b>TOOLS</b> opens the three tool screens.</td>
+<td><img src="docs/screens/keypad.png" alt="Set RPM keypad"><br><b>Set RPM.</b> Type a speed. The knob stays the start and stop: turned up, the spindle runs at the typed speed wherever the knob sits.</td>
+</tr>
+<tr>
+<td><img src="docs/screens/tools.png" alt="Tools list"><br><b>Tools.</b> Thread Assist, Spindle Diagnostics and Material &amp; Speed.</td>
+<td><img src="docs/screens/thread.png" alt="Thread Assist"><br><b>Thread Assist.</b> Pick a thread, type the length, choose the passes. It shows the thread depth and the depth after every pass, and <b>SEND</b> makes the G33 program for UCCNC.</td>
+</tr>
+<tr>
+<td><img src="docs/screens/pick.png" alt="Thread presets"><br><b>Thread presets.</b> Twelve metric and twelve inch threads.</td>
+<td><img src="docs/screens/numpad.png" alt="Number pad"><br><b>Number pad.</b> For the thread length and the work diameter, or take the value from the Z or X readout.</td>
+</tr>
+<tr>
+<td><img src="docs/screens/diag.png" alt="Spindle Diagnostics"><br><b>Spindle Diagnostics.</b> Deviation from the target, stability, sensor health, encoder noise, missed pulses, time to reach speed, load, and one verdict.</td>
+<td><img src="docs/screens/mat.png" alt="Material and Speed"><br><b>Material &amp; Speed.</b> Material, HSS or carbide, roughing or finishing, and the diameter give a suggested RPM, kept inside your lathe's limits. <b>APPLY</b> sets it.</td>
+</tr>
+<tr>
+<td><img src="docs/screens/xz.png" alt="X and Z view"><br><b>X and Z.</b> Two tall rows when the spindle speed is not needed.</td>
+<td><img src="docs/screens/rpm-alarm.png" alt="Alarm on the RPM view"><br><b>Alarms.</b> A soft limit close, or the encoder signal lost while the spindle should turn, replaces the tool line.</td>
+</tr>
+<tr>
+<td><img src="docs/screens/info.png" alt="Info screen"><br><b>Info.</b> Firmware, Wi-Fi address and signal, CNC online, spindle run hours and powered-on hours, and Reboot.</td>
+<td><img src="docs/screens/view.png" alt="View choice"><br><b>View.</b> Choose what fills the screen: everything, RPM only, X only, Z only, or X and Z.</td>
+</tr>
+</table>
+
+### Dark blue or black
+
+**Colours** on the Settings menu switches every screen to a black background with the same glow.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screens/black/rpm.png" alt="RPM view, black"></td>
+<td width="50%"><img src="docs/screens/black/thread.png" alt="Thread Assist, black"></td>
+</tr>
+<tr>
+<td><img src="docs/screens/black/diag.png" alt="Spindle Diagnostics, black"></td>
+<td><img src="docs/screens/black/mat.png" alt="Material and Speed, black"></td>
+</tr>
+</table>
+
+All screens in both colours are in [docs/screens](docs/screens).
+
+## What it does
+
+| Feature | What it gives you |
 | --- | --- |
-| Live DRO | Reads a 600 P/R E6B2-CWZ6C encoder on each slide, counted in hardware at 2400 counts per revolution. Zero buttons set the ESP32's own offset; zero it when you zero UCCNC. |
-| Spindle RPM / direction | Encoder A/B, same as the small LED display. |
-| Target RPM | From the knob (pot), or from the web page (overrides the knob until you press **Knob**). PI loop drives the lathe's controller through the PC817. |
-| Spindle load | Drive effort (PWM duty) the loop needs to hold the target. Not motor current. |
-| CNC Online | The G540 charge-pump signal is present, i.e. UCCNC is running and out of reset. |
-| Recording | 10 samples/s of X, Z, RPM, duty while UCCNC runs. Save to flash as CSV. |
-| Playback | Replays the **spindle** speed profile and scrubs the chart. The axes are UCCNC's: use **Export G-code** to get a `.nc` of the recorded moves and run that in UCCNC. |
-| Threading presets | Shows pitch/TPI/depth/blank, and downloads a ready G33 program (inch, same passes as `M12x1.25_thread_2in_INCH.nc`). |
-| OTA | Upload `firmware.bin` from the page. Optional manifest URL for "available version". |
-| Alarms | Encoder lost while commanded; tool within 0.05 in of a soft limit (limits in Settings). |
-| Run hours | Spindle and power-on hours, saved to flash every minute. |
+| **Closed-loop spindle speed** | The 100 P/R spindle encoder measures the speed and a PI loop drives the lathe's own speed-pot terminals through an optocoupler, so the speed holds when a cut loads the spindle. The lathe side stays isolated. |
+| **Speed from the screen** | Type an RPM on the touch screen; the knob starts and stops the spindle. The web page can set a target too. |
+| **X and Z readout** | A 600 P/R encoder on each slide, counted in hardware at 2400 counts per revolution. X as diameter or radius, inch units. |
+| **Thread Assist** | Choose a thread at the lathe, see the pass plan, and send the program to UCCNC without walking to the PC. |
+| **Spindle Diagnostics** | Shows whether the spindle holds speed and whether the encoder is healthy, so a bad thread can be blamed on the right thing. |
+| **Material & Speed** | A suggested spindle speed for the material, the tool and the diameter, for a good finish. |
+| **Web dashboard** | Any browser on your network: live readout and spindle gauge, a Thread Wizard for 13 thread forms (UN, ISO, Acme, Trapezoidal, Whitworth, BSP, NPT and more) with insert suggestions, a tool list, recording with G-code export, run hours, alarms, settings and firmware updates over Wi-Fi. |
+| **Works with UCCNC** | The spindle encoder is shared with the G540, so G33 threading keeps working. The ESP32 only watches the axes. |
 
-It never drives the steppers and never replaces the lathe's E-stop.
+It is not a safety device: keep the lathe's emergency stop within reach.
 
-## Wiring (ESP32-S3-DevKitC-1)
-The full build guide, with diagrams, is under **Help** on the dashboard. Every encoder and G540 line reaches the ESP32 through a ready-made 4-channel BSS138 level shifter module: LS1 for the spindle A/B/Z taps (shared with the G540 inputs), LS2 for the X and Z encoders, LS3 for the optional charge pump. LS1 and LS2 have the 12 V encoder supply on their HV side, so the cables carry a 0–12 V swing and the module's own 10 kΩ pull-ups do the pulling; LS3 has 5 V. The LV sides are fed from 3V3, so the ESP32 only ever sees 3.3 V. Spindle control stays isolated through a 1-channel PC817 module. The milled two-sided interface board in `hardware/` does the same job and remains an alternative.
+### Thread Assist: from the screen to UCCNC
 
-| ESP32 pin | Signal | From |
-| --- | --- | --- |
-| GPIO 4 / 5 / 6 | Spindle encoder A / B / Z (100 P/R) | LS1 LV1 / LV2 / LV3; HV1–HV3 on the encoder black / white / orange wires, which also go to G540 terminals 2 / 3 / 1. LS1 HV = 12 V, LV = 3V3 |
-| GPIO 7 / 15 | X encoder A / B (600 P/R) | LS2 LV1 / LV2; HV1 / HV2 on the encoder black / white. LS2 HV = 12 V, LV = 3V3 |
-| GPIO 16 / 17 | Z encoder A / B (600 P/R) | LS2 LV3 / LV4; HV3 / HV4 on the encoder black / white |
-| GPIO 18 | Charge pump (optional) | LS3 LV1; HV1 on G540 DB25 pin 16, DB25 pin 18 to GND. LS3 HV = 5V pin |
-| — | Encoder power | All three encoders from a **12 V** supply (the HV side must match the G540's 12 V inputs). Brown to 12 V +; blue, shields and supply − to ESP32 GND and G540 T12. Never from G540 T11. Axis encoder orange (index) unused. |
-| GPIO 1 | Speed knob wiper | 10k pot between 3V3 and GND |
-| GPIO 2 | Spindle PWM | PC817 module IN+ (IN− to GND). Module output C → lathe pot HIGH, E → WIPER, with 4.7k and 10 µF from WIPER to LOW. The lathe side is isolated: never joined to any other ground |
-| GPIO 8 / 9 / 10 / 11 / 12 | Display RESET / DC / CS / SDI (MOSI) / SCK | 2.8" ILI9341 SPI TFT with XPT2046 touch. VCC to 3V3 if the module's J1 jumper is bridged, 5V if open; LED to 3V3; SDO unconnected |
-| GPIO 12 / 11 / 13 / 14 | Touch T_CLK / T_DIN / T_DO / T_CS | T_CLK and T_DIN share the display's SCK and SDI pins. T_IRQ unconnected. A tap on the screen opens the Settings menu (zero X/Z, diameter, flip, colour swap, calibrate, reboot) |
-| 5V / GND | Power | USB charger. GND common with encoder 0 V and G540 T12. **Never** with the controller board. |
+The ESP32 cannot write a file onto the PC, so the PC fetches the program:
 
-Status LEDs are on the board and need no wiring. The RGB LED defaults to GPIO 48 and the blue LED to GPIO 44; change them under Settings if your board differs. Some clone boards need their "RGB" solder pads bridged before the RGB LED works.
+1. On the lathe: Settings → **TOOLS** → **Thread Assist**. Press **PRESETS** and pick the thread, tap **LENGTH** to type the length in inches, and **PASSES** to choose 6, 8, 11 or 14 passes (two spring passes are always added). Press **SEND**.
+2. On the PC, either
+   - **in UCCNC:** type `M20200` in the MDI line. The macro downloads the program from the ESP32 and loads it. Install it once: on the dashboard, **Help → Wiring diagram** (the display notes) has a download link for `M20200.txt`, written with your ESP32's address; save it in `C:\UCCNC\Profiles\Macro_<your profile>\`. Or
+   - **in the browser:** the dashboard's Thread Wizard shows the program with a download link.
+3. Check the loaded program in UCCNC's toolpath view before the first cut. The program stays on the ESP32 until it restarts.
 
-Charge pump tap (optional, only for the CNC Online indicator): put a DB25 male-female breakout between the UC100 and the G540 and pick off pin 16.
+The program is the same one the web page's Thread Wizard writes with its default choices: flank infeed at 29.5°, equal metal per pass, a stop to try the nut, and the tool always moved out in X before it travels along Z.
 
-If an axis counts backwards, set **Invert X/Z count** in Settings.
+### Spindle Diagnostics: what the readings mean
 
-## Build and flash
-1. Install PlatformIO (VS Code extension or `pip install platformio`).
-2. `pio run -t upload` (firmware), then `pio run -t uploadfs` (the web page in `data/`).
-3. First boot: no Wi-Fi configured, so it opens access point **ESP32-Lathe** (password `lathe1234`). Join it, open http://192.168.4.1, fill in Settings → Wi-Fi SSID/password, **Save & reboot**.
-4. Afterwards it's at http://esp32-lathe.local or the IP shown on the page. Later firmware goes in through the OTA card.
+| Reading | Meaning |
+| --- | --- |
+| Deviation | How far the speed is from the target, in percent |
+| Stability | 100 % minus the spread of the speed over the last 10 s |
+| Sensor, Noise, Missed | Between two index pulses (encoder Z, GPIO 6) there must be exactly one turn's worth of A pulses. Fewer are missed pulses, more are noise. Without the index wired these show A/B ONLY |
+| Accel | How long the spindle took to come within 3 % of the last new speed |
+| Load | The drive the controller is giving |
+| Verdict | WITHIN TOLERANCE: within 2 % of the target, at least 98 % stable, no encoder faults. A tap restarts the counts |
 
-## Settings to enter
-Spindle encoder PPR 100 · X and Z encoder P/R 600 · X and Z travel per encoder revolution = your screw leads in inches (X radial; calibrate with a dial indicator) · X shows diameter Yes · Max RPM to suit · KP 0.0004 · KI 0.0012 · soft limits to suit your travel.
+### Material & Speed: the numbers
 
-## Files
-- `src/main.cpp` firmware
-- `data/index.html` dashboard (open it directly in a browser to see it run on simulated data)
-- `data/hw/` board pictures and CAM files, served by the ESP32 and linked from Help (written by `make_pcb.py`; don't edit by hand)
-- `hardware/make_pcb.py` draws the two-sided interface board (no plated holes; vias are wire pins), checks both sides and writes the CAM files next to it. Every name carries the board revision (`REV` in the script, listed in `CHANGELOG.md`), for example rev F: `board_revF_bottom.dxf` (side 1, mirrored) and `board_revF_top.dxf` (side 2), the same two as true-size `.svg` for CAM that imports SVG, `board_revF_parts.dxf` (top view with part outlines, for checking), `_preview.svg`, `_gerber.zip` (Gerber and Excellon) and `_report.txt`. Each mill-file layer is one machining operation: ISO_CENTER (cutter centre lines for a 0.5 mm cutter, no offset), CLEAR_POCKET (pocket out), COPPER_REF (reference only), DRILL_0P8 / DRILL_1P3 / ALIGN_3P0, SLOT and OUTLINE. The script also sets `BOARD_REV` in `data/index.html`, so Help links to the new files. It also copies them all into `data/hw/`, so rebuild the filesystem image afterwards. Edit the placement in the script and rerun it (`pip install shapely`, then `python make_pcb.py`) to change the board.
-- `fonts/` anti-aliased digit fonts for the display (Oswald Bold, SIL Open Font License in `fonts/OFL.txt`) as VLW files, linked into the firmware by `board_build.embed_files`
-- `tools/make_vlw.py` regenerates those fonts from a TTF (needs Pillow): `python tools/make_vlw.py <folder with Pillow> Oswald-Bold.ttf fonts preview.png`
-- `platformio.ini`
+Suggested RPM = surface speed × 3.82 ÷ diameter in inches, kept inside your Min and Max RPM. Surface speeds in feet per minute:
+
+| Material | HSS rough | HSS finish | Carbide rough | Carbide finish |
+| --- | --- | --- | --- | --- |
+| Aluminum | 500 | 600 | 2000 | 2820 |
+| Steel (1018 type) | 125 | 215 | 600 | 850 |
+| Stainless (300 series) | 115 | 135 | 400 | 570 |
+| Brass | 300 | 350 | 820 | 1170 |
+
+HSS figures and the carbide finishing column are from LittleMachineShop's [turning speeds table](https://littlemachineshop.com/reference/cuttingspeeds.php); carbide roughing is about 70 % of the finishing figure. They are starting points: slow down if it chatters.
+
+## Get the firmware
+
+### Arduino IDE (easiest)
+
+1. From [Releases](https://github.com/winreboot/esp32s3-lathe/releases), download `esp32s3_lathe_fw1.14.0_page1.25.0_arduino.zip`. It holds the sketch and the four libraries it needs.
+2. Boards Manager: install **esp32** by Espressif Systems (3.x, checked with 3.3.13, or 2.0.17).
+3. Copy the folders in `libraries` into your Arduino libraries folder and restart the IDE.
+4. Open `esp32s3_lathe/esp32s3_lathe.ino`. The **Tools** menu settings are at the top of that file: ESP32S3 Dev Module, USB CDC On Boot Enabled, Flash 8 MB, partition "8M with spiffs", PSRAM OPI.
+5. Upload. The web page is built into this firmware, so nothing else needs uploading.
+
+The same sketch is in [`arduino/esp32s3_lathe`](arduino/esp32s3_lathe); it is generated from `src/main.cpp` by `tools/make_arduino.py`.
+
+### PlatformIO
+
+`pio run -t upload` for the firmware, then `pio run -t uploadfs` for the web page in `data/` (this erases saved recordings).
+
+### First start
+
+With no Wi-Fi saved, the ESP32 opens the access point **ESP32-Lathe** (password `lathe1234`). Join it, open http://192.168.4.1, enter your Wi-Fi in **Settings** and choose **Save & reboot**. After that the dashboard is at http://esp32-lathe.local or at the address on the display's Info screen. Later firmware can be uploaded from the dashboard's **Firmware** window.
+
+## Hardware
+
+### Today: ready-made modules
+
+The controller is built from an **ESP32-S3-DevKitC-1** (8 MB flash and octal PSRAM, such as N8R8 or N16R8), a **2.8 in ILI9341 SPI touch display** (XPT2046), three **BSS138 level shifter modules**, a **PC817 optocoupler module** and **Omron E6B2-CWZ6C** encoders: 100 P/R on the spindle, 600 P/R on each slide. The [build guide](docs/BUILD_GUIDE.md) has the parts list, every connection and the calibration; the dashboard's **Help** has the same guide with an interactive wiring diagram.
+
+### Coming soon: the Lathe Carrier board
+
+<p align="center"><img src="docs/pcb/lathe-carrier-revK-top.png" alt="Lathe Carrier board rev K, top side render" width="560"></p>
+
+A carrier board for the ESP32-S3-DevKitC-1 that replaces the level shifter modules, the PC817 module and the jumper wires. **It will be available to purchase soon.** The picture is a render of the top side from the manufacturing files; the first boards are being made.
+
+- 74.5 × 73.5 mm, one 12 V supply with resettable fuses and reverse-polarity protection; 5 V is made on the board
+- Four encoder inputs: the spindle with its index, plus X, Z and a 4th axis, level-shifted, with 12 V or 5 V sensor supply by jumper
+- Isolated speed output in place of the lathe's speed pot, for 10k, 5k, 2.5k or smaller pots by jumper, with 8 mm of creepage to the low-voltage side
+- Connection to the G540 for the shared spindle encoder, a speed knob input, and a header for the 2.8 in touch display
+- Two home-sensor inputs, a stop output, two switched 12 V outputs, a buzzer, status LEDs, RS-485, I2C and UART
+
+The lathe firmware uses the same pins as the board for the encoders, the knob, the speed output and the display.
+
+### Coming later: more uses for the board
+
+Firmware for the board's other features is being prepared and **will be released later**. Each one has its own screen in the same style:
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screens/coming/protection-zones.png" alt="Protection zones"><br><b>Protection zones.</b> A warning band before each travel limit and round the chuck, then a stop signal to the motion controller.</td>
+<td width="50%"><img src="docs/screens/coming/protection-zones-stop.png" alt="Protection zones, stop"><br>Past a limit: the stop output is on and stays on until the tool is back and you acknowledge it.</td>
+</tr>
+<tr>
+<td><img src="docs/screens/coming/vfd-monitor.png" alt="VFD monitor"><br><b>VFD spindle monitor.</b> Load, frequency, speed, current and DC bus voltage from a Huanyang VFD over RS-485.</td>
+<td><img src="docs/screens/coming/vfd-overload.png" alt="VFD overload"><br>On overload it can pause the feed before the cutter breaks.</td>
+</tr>
+<tr>
+<td><img src="docs/screens/coming/home-sensors.png" alt="Home sensors"><br><b>Home sensors.</b> X and Z referenced from proximity sensors.</td>
+<td><img src="docs/screens/coming/four-channel-readout.png" alt="Four-channel readout"><br><b>Four-channel readout.</b> X, Z, a 4th axis and the spindle angle, for manual machines too.</td>
+</tr>
+<tr>
+<td><img src="docs/screens/coming/machine-monitor.png" alt="Machine monitor"><br><b>Machine monitor.</b> Speed, surface speed, run hours, a service reminder and the dust collector, for machines with no controller of their own.</td>
+<td><img src="docs/screens/coming/rpm-pulse-output.png" alt="RPM pulse output"><br><b>RPM pulse output.</b> One pulse per spindle turn to a G540 input, so UCCNC shows the speed.</td>
+</tr>
+<tr>
+<td><img src="docs/screens/coming/switched-outputs.png" alt="Switched outputs"><br><b>Switched outputs.</b> A dust collector or mister that follows the spindle, with a run-on time.</td>
+<td><img src="docs/screens/coming/board-self-test.png" alt="Board self-test"><br><b>Board self-test.</b> Every input and output on one screen, for checking a new board.</td>
+</tr>
+</table>
+
+## Safety
+
+- The lathe's speed-pot terminals are at mains potential on most mini lathes. Measure before connecting, keep everything on that side insulated and inside the controller enclosure, and never join it to the ESP32's ground. The build guide explains the checks.
+- The controller never drives the steppers and does not replace the lathe's emergency stop.
+
+## Repository
+
+| Folder | Contents |
+| --- | --- |
+| `src/main.cpp` | The firmware (PlatformIO, Arduino-ESP32 core 2.0.17) |
+| `arduino/esp32s3_lathe/` | The same firmware as an Arduino IDE sketch, for core 3.x or 2.0.17 |
+| `data/index.html` | The web dashboard |
+| `art/`, `fonts/` | Screen artwork and the Oswald fonts, linked into the firmware |
+| `tools/` | `make_art.py` (artwork), `make_vlw.py` and `make_vlw_text.py` (fonts), `make_arduino.py` (the sketch) |
+| `docs/` | Build guide, screen pictures, the board render |
+
+Libraries: [LovyanGFX](https://github.com/lovyan03/LovyanGFX), [ESPAsyncWebServer and AsyncTCP](https://github.com/ESP32Async), [ArduinoJson](https://arduinojson.org). Fonts: Oswald, under the SIL Open Font License (`fonts/OFL.txt`).

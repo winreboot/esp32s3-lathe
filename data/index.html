@@ -90,6 +90,8 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
 .span2{grid-column:span 2}.span3{grid-column:span 3}
 .sidenote{color:var(--mut);font-size:12px}
 .toast{position:fixed;right:16px;bottom:16px;background:#1e2a44;border:1px solid var(--line);padding:10px 14px;border-radius:8px;display:none}
+#gcForm .row{gap:8px}#gcForm .row .k{flex:1;min-width:0}#gcForm input[type=number]{width:96px;flex:none}#gcForm select{flex:none;width:226px;max-width:62%}#gcForm .gc-u{flex:none;width:122px;color:var(--mut)}#gcForm .gc-c{flex:none;width:226px}.gc-code{max-height:340px;overflow:auto;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;font:12px/1.45 Consolas,'DejaVu Sans Mono',monospace;color:var(--txt);white-space:pre}
+.job-line{margin-bottom:10px;border-left:3px solid #22c55e;padding-left:10px}
 @media(max-width:1100px){main{grid-template-columns:1fr}.span2,.span3{grid-column:span 1}.layout{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr}nav{flex-direction:row;overflow:auto}nav a{flex:0 0 72px}}
 </style></head><body>
 <header>
@@ -112,6 +114,7 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
   <a href="#dro"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v16h16"/><path d="M2.5 5.5 5 3l2.5 2.5"/><path d="M18.5 16.5 21 19l-2.5 2.5"/><circle cx="14" cy="10" r="2"/></svg>DRO</a>
   <a href="#spindle"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 3v4M19.8 16.5l-3.5-2M4.2 16.5l3.5-2"/></svg>Spindle</a>
   <a href="#threading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v4H7z"/><path d="M9 7v11l3 3 3-3V7"/><path d="M9 11l6-2M9 15l6-2M9 18l6-2"/></svg>Threading</a>
+  <a href="#programs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14.5 3v4.5H19"/><path d="M10.5 11.5 8.5 14l2 2.5M13.5 11.5l2 2.5-2 2.5"/></svg>G-code</a>
   <a href="#tools"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 1 5-1.1l-3 3 1.1 2.1 2.1 1.1 3-3a4 4 0 0 1-5.6 4.9L8 21.5a2.1 2.1 0 0 1-3-3l8.2-8.2a4 4 0 0 1 1.5-4Z" transform="translate(-1 -1.5)"/></svg>Tools</a>
   <a href="#recorder"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></svg>Recorder</a>
   <a href="#logs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14.5 3v4.5H19"/><path d="M9 12h7M9 16h7"/></svg>Logs</a>
@@ -195,7 +198,7 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
 
   <!-- Threading -->
   <section class="card" data-view="threading"><h2>Thread Wizard <span class="tag blue" id="twTag">External</span></h2>
-    <div class="sidenote hidden" id="twJob" style="margin-bottom:10px;border-left:3px solid #22c55e;padding-left:10px"></div>
+    <div class="sidenote hidden job-line" id="twJob"></div>
     <div class="tw-steps" id="twSteps"></div>
     <div class="tw-sel" id="twSel"></div>
     <div class="tw-body">
@@ -248,8 +251,25 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
       <button id="twBack" onclick="twGo(tw.step-1)">← Back</button>
       <button class="primary" id="twNext" style="margin-left:auto" onclick="twGo(tw.step+1)">Next →</button>
       <button id="twDlTurn" class="hidden" style="margin-left:auto" onclick="twDownload(true)">1. OD turning (.nc)</button>
+      <button id="twSendB" onclick="twSend()" title="Puts the program on the ESP32; M20200 in UCCNC loads it">Send to UCCNC</button>
       <button class="primary" id="twDl" onclick="twDownload()">Download G-code (.nc)</button>
     </div>
+    <div class="sidenote" id="twSendMsg" style="text-align:right"></div>
+  </section>
+
+  <!-- G-code generators -->
+  <section class="card" data-view="programs"><h2>G-code Generators <span class="tag blue" id="gcTag">Parting off</span></h2>
+    <div class="sidenote hidden job-line" id="gcJob"></div>
+    <div class="tw-grid wide" id="gcTiles"></div>
+    <p class="sidenote" id="gcHelp" style="margin:10px 0"></p>
+    <div class="tw-body">
+      <div id="gcForm"></div>
+      <div><figure class="tw-fig" id="gcFig"></figure><div class="sidenote" id="gcSum" style="margin-top:6px"></div><div class="alarm tw-warn hidden" id="gcWarn"></div></div>
+    </div>
+    <div class="row" style="flex-wrap:wrap;margin-top:10px"><button onclick="gcReset()" title="Back to this generator's starting values">Defaults</button><button id="gcSend" style="margin-left:auto" onclick="gcSend()" title="Puts the program on the ESP32; M20200 in UCCNC loads it">Send to UCCNC</button><button class="primary" id="gcDl" onclick="gcDownload()">Download G-code (.nc)</button></div>
+    <div class="sidenote" id="gcSendMsg" style="text-align:right"></div>
+    <details class="tw-sched"><summary>Show the program</summary><pre class="gc-code" id="gcCode"></pre></details>
+    <div class="sidenote">Every program is for the inch UCCNC profile: X as diameter, X0 on the spindle centreline, Z0 on the end face, feeds per minute worked out from the feed per revolution and the RPM. Only G0 and G1 moves are used, and the tool leaves the work in X before it travels along Z. <b>Send to UCCNC</b> puts the program on the ESP32 (firmware 1.15.0 or newer); in UCCNC, <code>M20200</code> loads it, the same macro as Thread Assist on the touch screen. Check every new program in UCCNC's toolpath view, and run it first a little clear of the work.</div>
   </section>
 
   <!-- Tools -->
@@ -738,7 +758,7 @@ dialog.help{width:min(1240px,calc(100vw - 32px))}
 <div class="toast" id="toast"></div>
 <script>
 // Bump WEB_VERSION with every page change and record it in CHANGELOG.md. FW_MIN is the oldest firmware this page works fully with.
-const WEB_VERSION='1.25.0',FW_MIN='1.4.0';
+const WEB_VERSION='1.26.0',FW_MIN='1.4.0';
 // Interface board revision. hardware/make_pcb.py writes it here; every board file name carries it.
 const BOARD_REV='F';
 document.querySelectorAll('a.hwf').forEach(a=>{const n='board_rev'+BOARD_REV+'_'+a.dataset.f;a.href='hw/'+n;a.download=n;a.textContent=n});document.querySelectorAll('.hwrev').forEach(e=>e.textContent=BOARD_REV);
@@ -1000,11 +1020,281 @@ const twGcodeSafe=s=>String(s).replace(/[()]/g,' ');   // parentheses would end 
 function twTurnGcode(c){const stk=twStock(c),m=twMetric(),lenIn=twLenIn(),L=twTurnLen(c,lenIn),blank=(c.major-.05)/25.4,start=stk.mm/25.4,clear=start+2/25.4,doc=(+val('tDoc'))/(m?25.4:1),rpm=Math.round(+val('tTurnRpm')),F=rpm*(+val('tFeed'));
  let g='(OD turning for '+c.name+': stock '+start.toFixed(4)+' to blank '+blank.toFixed(4)+' in, '+L.toFixed(3)+' in long)\n(Use a turning tool - X0 centerline - Z0 end face)\nG90 G18 G40 G94\nM3 S'+rpm+'\nG4 P2\nG0 X'+clear.toFixed(4)+' Z0.100\n';
  const n=Math.max(1,Math.ceil((start-blank)/(2*doc)-1e-9));for(let i=1;i<=n;i++){const x=i===n?blank:start-2*doc*i;g+='(PASS '+i+')\nG0 X'+x.toFixed(4)+'\nG1 Z-'+L.toFixed(3)+' F'+F.toFixed(2)+'\nG0 X'+clear.toFixed(4)+'\nG0 Z0.100\n'}return g+'G0 Z0.400\nM5\nM30\n'}
-// Program sent with SEND on the touch screen's Thread Assist: the ESP32 keeps it until it restarts.
+// The program waiting on the ESP32 for UCCNC ("the job"): from SEND on the touch screen or Send to UCCNC on this page.
+// Shown above the Thread Wizard and the G-code generators until the ESP32 restarts.
 let jobSeen=-1;
-async function jobShow(id){if(id===jobSeen||sim)return;jobSeen=id;const el=$('twJob');if(!id){el.classList.add('hidden');return}
- try{const j=await(await fetch('/api/job')).json();el.innerHTML='<b>From the touch screen:</b> '+twEsc(j.name)+' thread program (job '+j.id+'). <a href="/api/job.nc" download>Download the G-code</a>, or in UCCNC run the <a href="/api/uccnc-macro" download>M20200 macro</a> to load it without leaving UCCNC.';el.classList.remove('hidden')}catch(e){jobSeen=-1}}
+async function jobShow(id){if(id===jobSeen||sim)return;jobSeen=id;const els=[$('twJob'),$('gcJob')];if(!id){els.forEach(e=>e.classList.add('hidden'));return}
+ try{const j=await(await fetch('/api/job')).json();const h='<b>Waiting for UCCNC:</b> '+twEsc(j.name)+' (job '+j.id+', '+(j.source==='web'?'from this page':'from the touch screen')+'). In UCCNC, run the <a href="/api/uccnc-macro" download>M20200 macro</a> to load it, or <a href="/api/job.nc" download>download the G-code</a>.';
+  els.forEach(e=>{e.innerHTML=h;e.classList.remove('hidden')})}catch(e){jobSeen=-1}}
 function twDownload(turn){const c=twCur();if(!c)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([turn?twTurnGcode(c):twGcode(c)],{type:'text/plain'}));const fp=turn?1:twFromPass((twPasses(c)||[1]).length);a.download=(turn?'turn_':'thread_')+c.name.replace(/[^A-Za-z0-9.]+/g,'_')+(fp>1?'_from_pass'+fp:'')+'.nc';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+// ---- G-code generators (the G-code page) ----
+// Each generator is a list of fields and a function that writes the program. Every program is for the INCH UCCNC
+// profile like the Thread Wizard's: X is the diameter, X0 the spindle centreline, Z0 the end face. Feeds are written
+// per minute (G94) from the feed per revolution and the RPM. Only G0 and G1 are used, no canned cycles, so a program
+// runs the same on any controller and the preview shows every move. The tool always leaves the work in X before it
+// travels along Z, and never rapids into material.
+const GC_CLEAR=.05;                      // radial clearance outside the stock for approach and retract (in)
+const gcN=v=>{const t=(Math.abs(v)<5e-5?0:v).toFixed(4);return t==='-0.0000'?'0.0000':t};
+// Program builder: writes only the axes that change, F only when it changes, and keeps the moves for the preview.
+function gcProg(){const p={out:[],mv:[],x:null,z:null,f:null};
+ // Comments: a ( or ) would end the comment early, and plain ASCII keeps every controller happy (Ø, ×, ° spelled out).
+ p.c=s=>p.out.push('('+String(s).replace(/\(/g,'[').replace(/\)/g,']').replace(/Ø/g,'dia ').replace(/×/g,'x').replace(/°/g,' deg').replace(/[^\x20-\x7e]/g,'')+')');
+ p.raw=s=>p.out.push(s);
+ p.mv1=(g,x,z,f)=>{const X=x==null?null:+gcN(x),Z=z==null?null:+gcN(z);let s=g;
+  if(X!=null&&X!==p.x)s+=' X'+gcN(X);if(Z!=null&&Z!==p.z)s+=' Z'+gcN(Z);if(s===g)return;
+  if(g==='G1'){const F=+Math.max(.01,f).toFixed(2);if(F!==p.f){s+=' F'+F.toFixed(2);p.f=F}}
+  p.out.push(s);const nx=X!=null?X:p.x,nz=Z!=null?Z:p.z;
+  if(p.x!=null&&p.z!=null)p.mv.push({r:g==='G0',x0:p.x,z0:p.z,x1:nx,z1:nz,f:p.f});p.x=nx;p.z=nz};
+ p.g0=(x,z)=>p.mv1('G0',x,z);p.g1=(x,z,f)=>p.mv1('G1',x,z,f);return p}
+function gcHead(p,title,lines,rpm){p.c(title);lines.forEach(l=>p.c(l));
+ p.c('INCH UCCNC profile - X is diameter - X0 = spindle centreline - Z0 = end face of the stock');
+ if(st.tool)p.c('Loaded when generated: '+st.tool);p.c('Made by the ESP32 lathe dashboard, page v'+WEB_VERSION);
+ p.raw('G90 G18 G20 G40 G94');p.raw('M3 S'+Math.round(rpm));p.raw('G4 P2')}
+// Out in X, then park: along Z in front of the work, or 1 in further out in X when a tailstock centre is in the end.
+function gcTail(p,xc,tail){p.g0(xc,null);if(tail)p.g0(xc+1,null);else p.g0(null,.4);p.raw('M5');p.raw('M30')}
+const gcIn=v=>(+v).toFixed(4)+' in';
+// Plunges at one or more Z positions, deeper by 2*d in X each round, with a back-off to just above the last floor
+// before every plunge (it breaks the chip) and the positions taken in alternate order. Used by Parting (step
+// plunges) and Grooving. clr > 0: every clr rounds the tool leaves the groove completely to clear the chips.
+function gcPlunges(p,pos,xs,xEnd,d,feed,clr,xc){let prev=xs,k=0,n=0;
+ while(prev>xEnd+1e-6){const nx=Math.max(xEnd,prev-2*d),order=k%2?pos.slice().reverse():pos;
+  order.forEach((z,j)=>{if(j||k)p.g0(prev+.01,null);p.g0(null,z);p.g1(nx,null,feed(nx));n++});
+  prev=nx;k++;if(clr>0&&k%clr===0&&prev>xEnd+1e-6)p.g0(xc,null)}
+ return n}
+
+function gcParting(v){
+ const D=v.D,L=v.L,W=v.W,S=Math.max(0,v.S),d=v.d,thru=!!v.thru,web=thru?-.01:v.web;
+ if(!(D>0&&L>0&&W>0&&d>0&&v.rpm>0&&v.f>0))return {err:'Enter positive values for the stock, part length, blade width, depth, RPM and feed.'};
+ if(!thru&&!(web>=0&&web<D))return {err:'Stop at Ø must be at least 0 and smaller than the stock Ø.'};
+ const zig=v.mode==='zig'&&S>0,za=-L-(v.ref==='l'?W:0),zb=za-S,xc=D+2*GC_CLEAR,xs=D+.02,F=v.f*v.rpm,Fs=F*Math.min(100,Math.max(5,v.slowP))/100,feed=x=>x<v.slowD?Fs:F;
+ const w=[],p=gcProg();
+ gcHead(p,'Parting off: stock Ø'+D.toFixed(4)+', part '+L.toFixed(4)+' in long (end face to the cut)',[
+  (zig?'Zig-zag ramp':'Step plunges')+' - blade '+W.toFixed(4)+' in, groove '+(W+S).toFixed(4)+' in wide, the extra width toward the chuck',
+  'Z is the blade\'s '+(v.ref==='l'?'left (chuck side)':'right (tailstock side)')+' corner - '+(d).toFixed(4)+' in deeper per '+(zig?'zig-zag (there and back)':'plunge'),
+  thru?'Cuts through to the centre: the part falls off':'Stops at Ø'+web.toFixed(4)+': break the part off with the spindle stopped, or saw through the web',
+  'Feed '+F.toFixed(2)+' in/min, '+Fs.toFixed(2)+' in/min below Ø'+(+v.slowD).toFixed(3)],v.rpm);
+ p.g0(xc,null);p.g0(null,za);p.g0(xs,null);
+ let n=0;
+ if(zig){let x=xs,side=0;
+  // Each crossing goes d/2 deeper (d on the diameter), so each end of the groove, reached every second crossing,
+  // takes a bite of d: the depth asked for is the deepest cut anywhere. A last crossing at the web Ø makes the floor flat.
+  while(x>web+1e-6){const nx=Math.max(web,x-d);p.g1(nx,side?za:zb,feed(nx));x=nx;side^=1;n++;
+   if(v.clr>0&&n%v.clr===0&&x>web+1e-6){p.g0(xc,null);p.g0(x+.02,null)}}   // out of the groove for the chips, back to just above the floor
+  p.g1(null,side?za:zb,feed(web))
+ }else{const cnt=S>0?Math.ceil(S/(.8*W))+1:1;n=gcPlunges(p,[...Array(cnt)].map((_,j)=>cnt>1?za-j*S/(cnt-1):za),xs,web,d,feed,v.clr,xc)}
+ gcTail(p,xc,false);
+ if(v.mode==='zig'&&!(S>0))w.push('Extra groove width is 0, so there is no room to zig-zag: the program plunges straight down.');
+ if(zig&&S<.25*W)w.push('A zig narrower than a quarter of the blade width hardly changes the load: it behaves almost like a straight plunge.');
+ if(zig)w.push('Zig-zag loads the side of the blade. It suits grooving inserts and blades ground with side clearance; for a plain HSS blade, Step plunges are kinder.');
+ if(thru)w.push('Cutting through: the part falls off at the end. Leave room for it to drop clear of the blade. The last bit at the centre is where blades chip.');
+ else if(web<.03)w.push('A web under Ø0.030 in can snap during the cut, and the loose part can catch the blade.');
+ if(d>.02)w.push('More than 0.020 in per '+(zig?'zig':'plunge')+' is a heavy cut for a parting blade on a small lathe.');
+ if(S>2*W)w.push('The groove is more than twice the blade width: more metal is cut than needed.');
+ w.push('Part close to the chuck, with the blade on centre height and square to the work, and never with the tailstock centre in.');
+ return {p,file:'parting_D'+D.toFixed(3)+'_L'+L.toFixed(3),name:'Parting off Ø'+D.toFixed(3)+' at '+L.toFixed(3)+' in',warn:w,
+  info:[n+' '+(zig?'zigs':'plunges'),'groove '+(W+S).toFixed(4)+' in wide'],stock:{D,len:L+W+S+.3}}}
+
+function gcGroove(v){
+ const D=v.D,Zw=v.Zw,Wg=v.Wg,Df=v.Df,W=v.W,d=v.d,a=v.fin?Math.max(0,v.a):0;
+ if(!(D>0&&Wg>0&&W>0&&d>0&&v.rpm>0&&v.f>0&&Zw>=0))return {err:'Enter positive values for the diameter, groove width, tool width, depth, RPM and feed, and a wall position of 0 or more.'};
+ if(!(Df>=0&&Df<D))return {err:'The floor Ø must be smaller than the diameter at the groove.'};
+ if(Wg<W-1e-6)return {err:'The groove is narrower than the tool. Use a tool no wider than the groove.'};
+ const o=v.ref==='l'?W:0,zR=-Zw,zL=-Zw-Wg,xc=D+2*GC_CLEAR,xs=D+.02,F=v.f*v.rpm,feed=()=>F;
+ let eA=zR-a,eB=zL+W+a;if(eA<eB)eA=eB=(zR+zL+W)/2;
+ const span=eA-eB,cnt=span>1e-6?Math.ceil(span/(.8*W))+1:1,pos=[...Array(cnt)].map((_,j)=>(cnt>1?eA-j*span/(cnt-1):eA)-o);
+ const w=[],p=gcProg();
+ gcHead(p,'Groove: '+Wg.toFixed(4)+' in wide, floor Ø'+Df.toFixed(4)+', right wall '+Zw.toFixed(4)+' in from the end face',[
+  'Tool '+W.toFixed(4)+' in wide - Z is its '+(v.ref==='l'?'left (chuck side)':'right (tailstock side)')+' corner - '+d.toFixed(4)+' in deeper per plunge',
+  v.fin?'Roughing leaves '+a.toFixed(4)+' in on the floor and walls for one finishing pass':'No finishing pass'],v.rpm);
+ p.g0(xc,null);p.g0(null,pos[0]);p.g0(xs,null);
+ const n=gcPlunges(p,pos,xs,Df+2*a,d,feed,v.clr,xc);
+ if(v.fin){p.g0(xs,null);p.g0(null,zR-o);p.g1(Df,null,F*.75);p.g1(null,zL+W-o,F*.75);p.g1(xs,null,F*.75)}
+ gcTail(p,xc,false);
+ if((D-Df)/2>.25)w.push('A groove deeper than 0.25 in needs a long, thin blade: watch for chatter.');
+ if(d>.02)w.push('More than 0.020 in per plunge is a heavy cut for a grooving tool on a small lathe.');
+ return {p,file:'groove_W'+Wg.toFixed(3)+'_at'+Zw.toFixed(3),name:'Groove '+Wg.toFixed(3)+' wide at '+Zw.toFixed(3)+' in',warn:w,
+  info:[n+' plunges at '+cnt+' position'+(cnt>1?'s':''),v.fin?'finishing pass on floor and walls':'no finishing pass'],stock:{D,len:Zw+Wg+.4}}}
+
+function gcFace(v){
+ const D=v.D,z0=v.z0,z1=v.z1,dz=v.dz,fz=Math.max(0,v.fz),to=Math.max(0,v.to);
+ if(!(D>0&&dz>0&&v.rpm>0&&v.f>0&&v.ff>0))return {err:'Enter positive values for the stock, depth per pass, RPM and feeds.'};
+ if(!(z1<z0))return {err:'"Face to Z" must be below "Face is now at Z" (more negative).'};
+ if(to>=D)return {err:'"Face to Ø" must be smaller than the stock Ø.'};
+ const xc=D+2*GC_CLEAR,xEnd=to>0?to:-Math.abs(v.past),F=v.f*v.rpm,Ff=v.ff*v.rpm,rEnd=z1+fz,lv=[];
+ let z=z0;while(z-dz>rEnd+1e-6){z-=dz;lv.push([z,F])}if(rEnd<z0-1e-6&&Math.abs(z-rEnd)>1e-6)lv.push([rEnd,F]);if(fz>0)lv.push([z1,Ff]);
+ const w=[],p=gcProg();
+ gcHead(p,'Facing: Ø'+D.toFixed(4)+' from Z'+z0.toFixed(4)+' to Z'+z1.toFixed(4)+(to>0?', down to Ø'+to.toFixed(4):''),[
+  lv.length+' passes, '+dz.toFixed(4)+' in deep'+(fz>0?' plus a '+fz.toFixed(4)+' in finishing pass':''),
+  'Feeds from the outside toward the centre'+(to>0?'':' and '+Math.abs(xEnd/2).toFixed(4)+' in past it, so no pip is left')],v.rpm);
+ p.g0(xc,null);
+ lv.forEach(([zz,f])=>{p.g0(null,zz);p.g1(xEnd,null,f);p.g0(null,zz+.01);p.g0(xc,null)});
+ gcTail(p,xc,false);
+ if(z0-z1>.25)w.push('Facing off more than 0.25 in: a parting or turning cut may be quicker.');
+ if(to===0&&Math.abs(xEnd)>.03)w.push('Going far past the centre makes the tool cut on its back side. 0.005 to 0.010 in is enough if the tool is on centre height.');
+ if(to===0)w.push('A pip in the middle means the tool is below centre height; a torn centre means it is above.');
+ return {p,file:'face_D'+D.toFixed(3)+'_to'+z1.toFixed(3),name:'Facing Ø'+D.toFixed(3)+' to Z'+z1.toFixed(3),warn:w,
+  info:[lv.length+' passes'],stock:{D,len:1,bore:to,face:z0}}}
+
+function gcTurn(v){
+ const D0=v.D0,Df=v.Df,L=v.L,zs=v.zs,doc=v.doc,fa=Math.max(0,v.fa),c=Math.max(0,v.c);
+ if(!(D0>0&&L>0&&doc>0&&zs>0&&v.rpm>0&&v.f>0&&v.ff>0))return {err:'Enter positive values for the stock, length, depth of cut, start clearance, RPM and feeds.'};
+ if(!(Df>0&&Df<D0))return {err:'The finished Ø must be smaller than the stock Ø.'};
+ if(c>=Df/2)return {err:'The chamfer is larger than the finished radius.'};
+ const xc=D0+2*GC_CLEAR,F=v.f*v.rpm,Ff=v.ff*v.rpm,rEnd=Df+2*fa,ds=[];
+ let d=D0;while(d-2*doc>rEnd+1e-6){d-=2*doc;ds.push(d)}if(rEnd<D0-1e-6&&Math.abs(d-rEnd)>1e-6)ds.push(rEnd);
+ const w=[],p=gcProg();
+ gcHead(p,'Turning: Ø'+D0.toFixed(4)+' to Ø'+Df.toFixed(4)+', '+L.toFixed(4)+' in long'+(c>0?', '+c.toFixed(4)+' in x 45 deg chamfer at the end':''),[
+  ds.length+' roughing passes, '+doc.toFixed(4)+' in deep, leaving '+fa.toFixed(4)+' in; then one finishing pass that also squares the shoulder',
+  'Each pass starts '+zs.toFixed(4)+' in in front of the end face'+(v.tail?' - TAILSTOCK MODE: Z never goes further out than the start':'')],v.rpm);
+ p.g0(xc,null);p.g0(null,zs);
+ ds.forEach(dd=>{p.g0(dd,null);p.g1(null,-L,F);p.g1(dd+.02,null,F);p.g0(null,zs)});
+ // A chamfer bigger than one depth of cut is roughed first, along lines parallel to it, each one depth of cut nearer.
+ // The line o in from the finished chamfer: X = Df - 2c + 2o - 2z; it meets the roughed diameter Df+2fa at Z = o - c - fa.
+ for(let o=c+fa-doc;c>0&&o>fa+1e-6;o-=doc){const zl=Math.min(zs,(Df-2*c+2*o)/2);p.g0(Df-2*c+2*o-2*zl,null);p.g0(null,zl);p.g1(Df+2*fa,o-c-fa,F);p.g1(Df+2*fa+.02,null,F);p.g0(null,zs)}
+ if(c>0){const zl=Math.min(zs,(Df-2*c)/2);p.g0(Df-2*c-2*zl,null);p.g0(null,zl);p.g1(Df,-c,Ff)}else p.g0(Df,null);   // lead in along the 45 deg line
+ p.g1(null,-L,Ff);p.g1(D0+.02,null,Ff);
+ gcTail(p,xc,!!v.tail);
+ if(doc>.04)w.push('More than 0.040 in per pass (0.080 in off the diameter) is heavy for a small lathe.');
+ if(L>4*D0&&!v.tail)w.push('This part is more than 4 times its diameter long. Support the end with the tailstock and tick Tailstock centre.');
+ if(v.tail)w.push('Tailstock mode: keep the start clearance small so the tool stays clear of the live centre.');
+ return {p,file:'turn_D'+Df.toFixed(3)+'_L'+L.toFixed(3),name:'Turning Ø'+D0.toFixed(3)+' to Ø'+Df.toFixed(3)+' x '+L.toFixed(3),warn:w,
+  info:[ds.length+' roughing passes + finish'],stock:{D:D0,len:L+.4}}}
+
+function gcTaper(v){
+ const D0=v.D0,Ds=v.Ds,Db=v.Db,L=v.L,zs=v.zs,doc=v.doc,fa=Math.max(0,v.fa);
+ if(!(D0>0&&L>0&&doc>0&&zs>0&&v.rpm>0&&v.f>0&&v.ff>0&&Ds>0))return {err:'Enter positive values for every size, the depth of cut, RPM and feeds.'};
+ if(!(Ds<Db))return {err:'The small end (at the end face) must be smaller than the large end. This generator cuts tapers that grow toward the chuck.'};
+ if(Db>D0+1e-9)return {err:'The large end cannot be bigger than the stock.'};
+ const xc=D0+2*GC_CLEAR,F=v.f*v.rpm,Ff=v.ff*v.rpm,k=(Db-Ds)/L;
+ const zeOf=d=>Math.max(-L,Math.min(0,-(d-2*fa-Ds)/k));          // where the taper plus the allowance reaches diameter d
+ const ds=[];let d=D0;const rEnd=Ds+2*fa;while(d-2*doc>rEnd+1e-6){d-=2*doc;ds.push(d)}
+ const half=Math.atan((Db-Ds)/2/L)*180/Math.PI,w=[],p=gcProg();
+ gcHead(p,'Taper: Ø'+Ds.toFixed(4)+' at the end face to Ø'+Db.toFixed(4)+' at Z-'+L.toFixed(4)+', from Ø'+D0.toFixed(4)+' stock',[
+  'Included angle '+(2*half).toFixed(3)+' deg, '+(k*12).toFixed(4)+' in per foot on the diameter',
+  'Roughing passes '+doc.toFixed(4)+' in deep follow the taper and leave '+fa.toFixed(4)+' in; then one finishing pass along it'+(v.tail?' - TAILSTOCK MODE':'')],v.rpm);
+ p.g0(xc,null);p.g0(null,zs);let dp=D0,n=0;
+ ds.forEach(dd=>{const ze=zeOf(dd);if(ze>-1e-4){dp=dd;return}      // a pass that would end in front of the end face cuts nothing
+  p.g0(dd,null);p.g1(null,ze,F);
+  if(dd-2*fa>=Db-1e-9)p.g1(dd+.02,null,F);                          // still above the large end: a straight pass, the full length
+  else if(dp-2*fa>=Db-1e-9){p.g1(Db+2*fa,-L,F);p.g1(dp+.02,null,F)} // first pass into the taper: follow it to the shoulder, then square the shoulder
+  else{p.g1(dp,zeOf(dp),F);p.g1(dp+.02,null,F)}                     // follow the taper back up to where the last pass ended
+  p.g0(null,zs);dp=dd;n++});
+ const zl=Math.min(zs,Ds/k);p.g0(Ds-k*zl,null);p.g0(null,zl);p.g1(Db,-L,Ff);p.g1(D0+.02,null,Ff);   // lead in along the taper's own line
+ gcTail(p,xc,!!v.tail);
+ if(L>4*D0&&!v.tail)w.push('This part is more than 4 times its diameter long. Support the end with the tailstock and tick Tailstock centre.');
+ return {p,file:'taper_'+Ds.toFixed(3)+'-'+Db.toFixed(3)+'_L'+L.toFixed(3),name:'Taper Ø'+Ds.toFixed(3)+' to Ø'+Db.toFixed(3)+' over '+L.toFixed(3),warn:w,
+  info:[n+' roughing passes + finish','included angle '+(2*half).toFixed(3)+'°','half angle '+half.toFixed(3)+'°',(k*12).toFixed(4)+' in/ft'],stock:{D:D0,len:L+.4}}}
+
+function gcDrill(v){
+ const Dd=v.Dd,depth=v.depth,q=v.q,zs=v.zs;
+ if(!(Dd>0&&depth>0&&q>0&&zs>0&&v.rpm>0&&v.f>0))return {err:'Enter positive values for the drill, depth, peck, start clearance, RPM and feed.'};
+ const pl=Dd/2/Math.tan(59*Math.PI/180),zb=-(depth+(v.to==='full'?pl:0)),F=v.f*v.rpm,w=[],p=gcProg();
+ gcHead(p,'Peck drilling: Ø'+Dd.toFixed(4)+' drill, '+depth.toFixed(4)+' in deep '+(v.to==='full'?'to full diameter':'to the drill point'),[
+  'Drill held on the spindle centreline in the tool post - X0 must be the spindle axis',
+  'Pecks of '+q.toFixed(4)+' in, '+(v.mode==='out'?'out of the hole after each peck to clear the chips':'backing off 0.010 in after each peck to break the chip'),
+  'Drill point 118 deg: the point is '+pl.toFixed(4)+' in long'],v.rpm);
+ p.g0(null,.5);p.g0(0,null);p.g0(null,zs);let z=0,n=0;
+ while(z>zb+1e-6){const nz=Math.max(zb,z-q);if(n)p.g0(null,z+.01);p.g1(null,nz,F);n++;z=nz;if(z>zb+1e-6)p.g0(null,v.mode==='out'?zs:z+.01)}
+ p.g0(null,.5);p.raw('M5');p.raw('M30');
+ if(v.mode!=='out'&&depth>3*Dd)w.push('Deeper than 3 drill diameters: chips pack in the flutes. Choose "out of the hole" pecks.');
+ if(q>Dd)w.push('A peck longer than the drill diameter packs the flutes on small drills.');
+ w.push('Centre drill first. The drill must sit exactly on the spindle axis, in a holder in the tool post; drilling from the tailstock is done by hand.');
+ return {p,file:'drill_D'+Dd.toFixed(3)+'_'+depth.toFixed(3),name:'Drill Ø'+Dd.toFixed(3)+' x '+depth.toFixed(3),warn:w,
+  info:[n+' pecks','bottom of the point at Z'+zb.toFixed(4)],stock:{D:Math.max(1,Dd*3),len:Math.max(1,-zb+.3),hole:{d:Dd,z:-depth,zb}}}}
+
+const GC_REF=[['r','right corner (tailstock side)'],['l','left corner (chuck side)']];
+const GC_GEN={
+ part:{n:'Parting off',s:'Zig-zag or pecks, leaves a web',gen:gcParting,
+  help:'Touch the blade off on the end face with the corner chosen below and set Z0 there; set X on the stock diameter. The part is the piece from the end face to the cut. <b>Zig-zag</b> ramps the blade sideways as it goes down, across a groove a little wider than the blade, so it never takes a full-width plunge: the way you would cut by hand. Each time it has crossed the groove and come back it is one depth step deeper, and that step is the deepest bite it takes. <b>Step plunges</b> peck straight down at two or more places across the groove, backing off before each plunge to break the chip. The extra width goes toward the chuck, so the part keeps its length. The program stops at the web you choose; the feed drops below the slow-down diameter.',
+  f:[['D','Stock Ø','in',1],['L','Part length (end face to the cut)','in',1],['W','Blade width','in',.094],['ref','Z is the blade\'s','s','r',GC_REF],
+     ['mode','Pattern','s','zig',[['zig','Zig-zag ramp'],['peck','Step plunges']]],['S','Extra groove width (toward the chuck)','in',.04],
+     ['d','Depth per zig-zag or plunge (radial)','in',.01],['thru','Cut through to the centre','c',false],['web','Stop at Ø (web left on)','in',.06,null,v=>!v.thru],
+     ['slowD','Slow down below Ø','in',.25],['slowP','Feed below that','%',50],['clr','Leave the groove to clear chips every (0 = never)','zigs',8],
+     ['rpm','Spindle speed','rpm',300],['f','Feed','in/rev',.0015]]},
+ groove:{n:'Grooving',s:'Thread relief, O-ring, circlip',gen:gcGroove,
+  help:'For a groove wider than the tool: plunges side by side with a back-off before each one, then a finishing pass that cuts the right wall, the floor and the left wall to size. Use it for the relief groove at the end of a thread, O-ring and circlip grooves. Touch off as for parting: Z0 on the end face with the chosen corner.',
+  f:[['D','Diameter at the groove','in',1],['Zw','Groove\'s right wall from the end face','in',.5],['Wg','Groove width','in',.125],['Df','Groove floor Ø','in',.875],
+     ['W','Tool width','in',.094],['ref','Z is the tool\'s','s','r',GC_REF],['d','Depth per plunge (radial)','in',.01],['fin','Finishing pass','c',true],
+     ['a','Left for finishing (radial)','in',.003,null,v=>v.fin],['clr','Leave the groove to clear chips every (0 = never)','rounds',0],['rpm','Spindle speed','rpm',400],['f','Feed','in/rev',.0015]]},
+ face:{n:'Facing',s:'Square the end, set the length',gen:gcFace,
+  help:'Faces the end in several passes, each feeding from the outside to the centre, with a lighter finishing pass. Set Z0 where the face is now (touch the tool on it) and give the Z to face to; a negative value takes material off. For a tube, set "Face to Ø" to just inside the bore.',
+  f:[['D','Stock Ø','in',1],['z0','Face is now at Z','in',0],['z1','Face to Z','in',-.02],['to','Face to Ø (0 = to the centre)','in',0],
+     ['past','Go past the centre by','in',.01,null,v=>!(v.to>0)],['dz','Depth per pass','in',.01],['fz','Finishing pass depth','in',.002],
+     ['rpm','Spindle speed','rpm',600],['f','Roughing feed','in/rev',.003],['ff','Finishing feed','in/rev',.0015]]},
+ turn:{n:'Turning',s:'To a diameter, chamfer the end',gen:gcTurn,
+  help:'Turns the outside to a diameter over a length from the end face: roughing passes, then a finishing pass that also squares the shoulder and can chamfer the end at 45°, for example before threading. Set X on the stock diameter and Z0 on the end face.',
+  f:[['D0','Stock Ø','in',1],['Df','Finished Ø','in',.75],['L','Length from the end face','in',1],['c','Chamfer at the end (0 = none)','in',.02],
+     ['doc','Depth per pass (radial)','in',.02],['fa','Left for finishing (radial)','in',.005],['zs','Start in front of the end face','in',.05],
+     ['tail','Tailstock centre in the end','c',false],['rpm','Spindle speed','rpm',600],['f','Roughing feed','in/rev',.004],['ff','Finishing feed','in/rev',.002]]},
+ taper:{n:'Taper',s:'Tapers, arbors, centres',gen:gcTaper,
+  help:'Cuts an outside taper that grows from the end face toward the chuck, such as an arbor or a dead centre. The roughing passes follow the taper so the finishing pass takes an even cut, and the shoulder behind the taper is squared. The included angle and the taper per foot are shown below.',
+  f:[['D0','Stock Ø','in',1],['Ds','Small end Ø (at the end face)','in',.6],['Db','Large end Ø','in',.8],['L','Taper length','in',1.5],
+     ['doc','Depth per pass (radial)','in',.02],['fa','Left for finishing (radial)','in',.005],['zs','Start in front of the end face','in',.05],
+     ['tail','Tailstock centre in the end','c',false],['rpm','Spindle speed','rpm',600],['f','Roughing feed','in/rev',.004],['ff','Finishing feed','in/rev',.002]]},
+ drill:{n:'Peck drilling',s:'Drill on centre in the tool post',gen:gcDrill,
+  help:'Drills along the spindle axis in pecks, with the drill held exactly on centre in a holder in the tool post (X0 must be the spindle axis). Each peck either comes out of the hole to clear the chips or backs off slightly to break them. Centre drill first.',
+  f:[['Dd','Drill Ø','in',.25],['depth','Hole depth','in',.5],['to','Depth measured','s','full',[['full','to full diameter'],['tip','to the drill point']]],
+     ['q','Peck','in',.1],['mode','After each peck','s','out',[['out','out of the hole'],['brk','back off 0.010 in']]],['zs','Start in front of the end face','in',.1],
+     ['rpm','Spindle speed','rpm',800],['f','Feed','in/rev',.002]]}
+};
+let gcSel='part',gcV={},gcRes=null;
+try{const j=JSON.parse(localStorage.getItem('gcVals1')||'null');if(j&&j.v){gcV=j.v;if(GC_GEN[j.sel])gcSel=j.sel}}catch(e){}
+function gcVals(id){const g=GC_GEN[id],o={},sv=gcV[id]||{};g.f.forEach(f=>{const k=f[0],t=f[2];o[k]=k in sv?sv[k]:f[3];if(t!=='s'&&t!=='c')o[k]=+o[k]});return o}
+function gcSave(){try{localStorage.setItem('gcVals1',JSON.stringify({sel:gcSel,v:gcV}))}catch(e){}}
+function gcPick(id){gcSel=id;gcSave();gcForm()}
+function gcReset(){delete gcV[gcSel];gcSave();gcForm()}
+function gcForm(){const g=GC_GEN[gcSel],v=gcVals(gcSel);
+ $('gcTiles').innerHTML=Object.keys(GC_GEN).map(k=>twTile(k===gcSel,"gcPick('"+k+"')",GC_GEN[k].n,GC_GEN[k].s)).join('');
+ $('gcTag').textContent=g.n;$('gcHelp').innerHTML=g.help;
+ $('gcForm').innerHTML=g.f.map(f=>{const [k,l,u,,opt]=f,id='gc_'+k;let inp;
+  if(u==='s')inp='<select id="'+id+'">'+opt.map(o=>'<option value="'+o[0]+'"'+(o[0]===v[k]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>';
+  else if(u==='c')inp='<span class="gc-c"><input id="'+id+'" type="checkbox"'+(v[k]?' checked':'')+'></span>';
+  else inp='<input id="'+id+'" type="number" step="any" value="'+v[k]+'"><span class="gc-u">'+u+'<span id="'+id+'_mm"></span></span>';
+  return '<div class="row" id="'+id+'_row"><span class="k">'+l+'</span>'+inp+'</div>'}).join('');
+ g.f.forEach(f=>{const el=$('gc_'+f[0]);el.addEventListener(f[2]==='c'||f[2]==='s'?'change':'input',()=>{(gcV[gcSel]=gcV[gcSel]||{})[f[0]]=f[2]==='c'?el.checked:f[2]==='s'?el.value:el.value;gcSave();gcRun()})});
+ gcRun()}
+// Common checks: Max RPM and the soft limits from Settings.
+function gcCommon(res,v){const w=[],mx=st.maxRpm>0?st.maxRpm:0,zMin=parseFloat(val('s_zMin')),xMax=parseFloat(val('s_xMax'));
+ if(mx&&v.rpm>mx)w.push('The spindle speed is above Max RPM ('+mx+') in Settings: the controller will hold it at '+mx+'.');
+ let lz=Infinity,hx=-Infinity;res.p.mv.forEach(m=>{lz=Math.min(lz,m.z0,m.z1);hx=Math.max(hx,m.x0,m.x1)});
+ if(isFinite(zMin)&&lz<zMin)w.push('The program goes to Z'+lz.toFixed(3)+', past the Z soft limit of '+zMin+' in set in Settings.');
+ if(isFinite(xMax)&&hx>xMax)w.push('The program goes to X'+hx.toFixed(3)+', past the X soft limit of '+xMax+' in set in Settings.');
+ return w}
+function gcRun(){const g=GC_GEN[gcSel],v=gcVals(gcSel);
+ g.f.forEach(f=>{const r=$('gc_'+f[0]+'_row');if(r)r.classList.toggle('hidden',!!(f[5]&&!f[5](v)));const mm=$('gc_'+f[0]+'_mm');if(mm)mm.textContent=f[2]==='in'&&isFinite(v[f[0]])?' = '+(v[f[0]]*25.4).toFixed(2)+' mm':''});
+ const res=g.gen(v);gcRes=res.err?null:res;$('gcDl').disabled=$('gcSend').disabled=!gcRes;
+ if(res.err){$('gcWarn').innerHTML='<div>'+res.err+'</div>';$('gcWarn').classList.remove('hidden');$('gcSum').textContent='';$('gcCode').textContent='';gcDraw(null);return}
+ const w=gcCommon(res,v).concat(res.warn);$('gcWarn').innerHTML=w.map(s=>'<div>'+s+'</div>').join('');$('gcWarn').classList.toggle('hidden',!w.length);
+ let cut=0,t=0;res.p.mv.forEach(m=>{if(m.r)return;const l=Math.hypot((m.x1-m.x0)/2,m.z1-m.z0);cut+=l;t+=l/m.f});
+ const code=res.p.out.join('\n')+'\n';$('gcCode').textContent=code;
+ $('gcSum').innerHTML='<b>'+twEsc(res.name)+'</b> · '+res.info.map(twEsc).join(' · ')+' · cutting moves '+cut.toFixed(2)+' in, about '+(t<1?Math.max(1,Math.round(t*60))+' s':t.toFixed(1)+' min')+' at feed · '+res.p.out.length+' lines';
+ gcDraw(res)}
+// Side view, to scale: the upper half of the stock above the centreline, cutting moves in green, rapids dashed amber.
+function gcDraw(res){if(!res){$('gcFig').innerHTML='<svg viewBox="0 0 560 300" role="img" aria-label="No program"><text x="280" y="150" text-anchor="middle" class="m">Fix the values to see the toolpath</text></svg>';return}
+ const S=res.stock,mv=res.p.mv;let z0=Math.min(-S.len,...mv.map(m=>Math.min(m.z0,m.z1)))-.05,z1=Math.max(.3,...mv.map(m=>Math.max(m.z0,m.z1)))+.05,r1=Math.max(S.D/2,...mv.map(m=>Math.max(m.x0,m.x1)/2))+.08;
+ const sc=Math.min(520/(z1-z0),230/r1),X=z=>20+(z-z0)*sc,Y=r=>262-r*sc,face=S.face||0;
+ let s='<svg viewBox="0 0 560 300" role="img" aria-label="Toolpath preview: '+twEsc(res.name)+'"><defs><linearGradient id="gcSteel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cbd5e1"/><stop offset="1" stop-color="#475569"/></linearGradient></defs>';
+ s+='<rect x="'+X(-S.len)+'" y="'+Y(S.D/2)+'" width="'+(X(face)-X(-S.len))+'" height="'+(Y(S.bore>0?S.bore/2:0)-Y(S.D/2))+'" fill="url(#gcSteel)" opacity=".55"/>';
+ s+='<rect x="'+(X(-S.len)-14)+'" y="'+(Y(S.D/2)-8)+'" width="14" height="'+(Y(0)-Y(S.D/2)+8)+'" fill="#334155" stroke="#64748b"/>';
+ if(S.hole)s+='<path d="M'+X(0)+' '+Y(S.hole.d/2)+'H'+X(S.hole.z)+'L'+X(S.hole.zb)+' '+Y(0)+'" fill="none" stroke="#38bdf8" stroke-dasharray="4 3"/>';
+ s+='<path d="M10 '+Y(0)+'H550" stroke="#38bdf8" stroke-dasharray="12 3 3 3" opacity=".6"/>';
+ s+='<path d="M'+X(0)+' '+(Y(0)+6)+'V'+(Y(r1)-2)+'" stroke="#8fa1c2" stroke-dasharray="2 3"/><text x="'+X(0)+'" y="'+(Y(0)+20)+'" text-anchor="middle" class="m">Z0</text>';
+ const seg=r=>mv.filter(m=>m.r===r).map(m=>'M'+X(m.z0).toFixed(1)+' '+Y(m.x0/2).toFixed(1)+'L'+X(m.z1).toFixed(1)+' '+Y(m.x1/2).toFixed(1)).join('');
+ s+='<path d="'+seg(true)+'" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4 3" fill="none" opacity=".8"/><path d="'+seg(false)+'" stroke="#22c55e" stroke-width="1.6" fill="none"/>';
+ if(mv.length)s+='<circle cx="'+X(mv[0].z0)+'" cy="'+Y(mv[0].x0/2)+'" r="3.5" fill="#f59e0b"/>';
+ s+='<text x="10" y="18" class="m">To scale, upper half. Green: cutting moves. Amber dashed: rapids. Dot: start.</text></svg>';
+ $('gcFig').innerHTML=s}
+function gcDownload(){if(!gcRes)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([gcRes.p.out.join('\n')+'\n'],{type:'text/plain'}));a.download=gcRes.file+'.nc';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function gcSend(){if(gcRes)jobPost(gcRes.name,gcRes.file,gcRes.p.out.join('\n')+'\n',$('gcSendMsg'))}
+function twSend(){const c=twCur();if(!c||$('twDl').disabled)return;jobPost(c.name,'thread_'+c.name.replace(/[^A-Za-z0-9.]+/g,'_'),twGcode(c),$('twSendMsg'))}
+// Send to UCCNC: the program goes to the ESP32 as "the job" (firmware 1.15.0 or newer), and the M20200 macro in UCCNC loads it.
+async function jobPost(name,file,text,msg){
+ if(sim){msg.textContent='Demo mode: on the lathe this goes to the ESP32, and M20200 in UCCNC loads it.';return}
+ if(st.fw&&verLt(st.fw,'1.15.0')){msg.textContent='Sending needs firmware 1.15.0 or newer. Download the file instead, or update the firmware.';return}
+ msg.textContent='Sending…';
+ try{const r=await fetch('/api/job?name='+encodeURIComponent(name)+'&file='+encodeURIComponent(file),{method:'POST',headers:{'Content-Type':'text/plain'},body:text});
+  if(!r.ok)throw new Error(await r.text());const j=await r.json();msg.textContent='Sent as job '+j.id+'. In UCCNC, run M20200 to load it, then check it in the toolpath view.';jobSeen=-1;jobShow(j.id)}
+ catch(e){msg.textContent='Could not send: '+(e.message||e)}}
 // ---- tools: the list and the loaded tool live on the ESP32 ----
 let tools=[],toolsOk=true;
 const tlKey=s=>String(s).replace(/\s/g,'').toUpperCase();
@@ -1060,8 +1350,8 @@ function twRender(){const m=twMetric(),c=twCur(),max=twMaxStep(),f=tw.form?twF()
  if(f){$('twCMajL').textContent='Major Ø ('+f.u+')';$('twCPitL').textContent=f.pu==='tpi'?'Threads per inch':'Pitch (mm)'}
  if(f&&tw.size!==null&&!cust){const r=f.rows[tw.size];$('twPitches').innerHTML=r.slice(2).map((p,i)=>twTile(tw.pi===i,"twPick('pi',"+i+")",f.pu==='tpi'?p+' TPI':p+' mm',f.ser[Math.min(i,f.ser.length-1)]+(i===0&&f.ser.length>1?' (standard)':''))).join('')}
  if(f)$('tPassL').textContent=(f.code?'Max first pass':'Depth per pass')+' ('+f.u+')';
- $('twBack').classList.toggle('hidden',tw.step===1);$('twNext').classList.toggle('hidden',tw.step===4);$('twNext').disabled=tw.step+1>max;$('twDl').classList.toggle('hidden',tw.step!==4);
- const lenIn=twLenIn(),rpm=+val('tRpm'),ds=c?twPasses(c):null,startZ=+val('tStart'),stk=c?twStock(c):{state:'none'},ok=!!(c&&lenIn>0&&rpm>0&&ds&&startZ>0&&!f.noG&&stk.state!=='none'&&stk.state!=='small');$('twDl').disabled=!ok;
+ $('twBack').classList.toggle('hidden',tw.step===1);$('twNext').classList.toggle('hidden',tw.step===4);$('twNext').disabled=tw.step+1>max;$('twDl').classList.toggle('hidden',tw.step!==4);$('twSendB').classList.toggle('hidden',tw.step!==4);
+ const lenIn=twLenIn(),rpm=+val('tRpm'),ds=c?twPasses(c):null,startZ=+val('tStart'),stk=c?twStock(c):{state:'none'},ok=!!(c&&lenIn>0&&rpm>0&&ds&&startZ>0&&!f.noG&&stk.state!=='none'&&stk.state!=='small');$('twDl').disabled=$('twSendB').disabled=!ok;
  const over=stk.state==='over'&&!(f&&f.noG),turnOk=over&&lenIn>0&&+val('tDoc')>0&&+val('tFeed')>0&&+val('tTurnRpm')>0;$('twDl').textContent=c&&f.noG?'G-code not available for tapers':over?'2. Thread (.nc)':'Download G-code (.nc)';
  $('twTurn').classList.toggle('hidden',!over);$('twDlTurn').classList.toggle('hidden',!over||tw.step!==4);$('twDlTurn').disabled=!turnOk;$('twDl').style.marginLeft=over?'':'auto';
  if(f){$('tStockL').textContent='Stock Ø ('+f.u+')';$('tDocL').textContent='Depth per pass ('+f.u+')'}
@@ -1124,9 +1414,9 @@ function twDraw(c){if(!c){$('twFig').innerHTML='<svg viewBox="0 0 480 290" role=
  '<text x="10" y="285" class="m">Scaled to fit, pitch and diameter in true proportion. Rounded forms drawn with flats.</text></svg>'}
 ['cMajor','cPitch'].forEach(i=>$(i).addEventListener('input',()=>{twDefaults();twRender()}));$('tStock').addEventListener('input',()=>{const c=twCur();if(c){const s=twStock(c);if(s.mm>0)$('tTurnRpm').value=TW_turnRpm(s.mm)}});
 ['tLen','tRpm','tStock','tDoc','tFeed','tTurnRpm','tStart','tFrom'].forEach(i=>$(i).addEventListener('input',twRender));$('tTail').addEventListener('change',twRender);
-$('tPass').addEventListener('input',()=>{tw.passMode='depth';twRender()});$('tN').addEventListener('input',()=>{tw.passMode='count';twRender()});twRender();
+$('tPass').addEventListener('input',()=>{tw.passMode='depth';twRender()});$('tN').addEventListener('input',()=>{tw.passMode='count';twRender()});twRender();gcForm();
 // ---- settings / OTA ----
-async function loadSettings(){try{const s=await (await fetch('/api/settings')).json();st.maxRpm=s.maxRpm;for(const k in s){const el=$('s_'+k);if(el)el.value=s[k]}}catch(e){}axResUpdate()}
+async function loadSettings(){try{const s=await (await fetch('/api/settings')).json();st.maxRpm=s.maxRpm;for(const k in s){const el=$('s_'+k);if(el)el.value=s[k]}}catch(e){}axResUpdate();gcRun()}
 async function saveSettings(reboot){const o={reboot};['ssid','pass','host','manifest'].forEach(k=>o[k]=val('s_'+k));['ppr','xPpr','xLead','zPpr','zLead','maxRpm','minRpm','kp','ki','xMin','xMax','zMin','zMax','ledRgb','ledBlue'].forEach(k=>o[k]=+val('s_'+k));['knob','xInv','zInv','xDia','blueLow','dispFlip'].forEach(k=>o[k]=val('s_'+k)==='true');
  if(!(o.maxRpm>o.minRpm)){$('setMsg').textContent='Max RPM must be greater than Min RPM.';$('setMsg').classList.remove('hidden');return}
  if(!(o.xPpr>0&&o.zPpr>0&&o.xLead>0&&o.zLead>0)){$('setMsg').textContent='Encoder P/R and travel per encoder rev must all be greater than zero.';$('setMsg').classList.remove('hidden');return}

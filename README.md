@@ -6,7 +6,7 @@ A touch screen and a Wi-Fi dashboard for a CNC-converted mini lathe. An ESP32-S3
 
 It was built for a Vevor MX-210V (8 × 16) mini lathe converted to CNC with UCCNC, a UC100 and a Gecko G540, and works next to the motion controller: it never drives the steppers.
 
-**Firmware 1.14.0 · web page 1.25.0** · [Download](https://github.com/winreboot/esp32s3-lathe/releases) · [Build guide](docs/BUILD_GUIDE.md) · [What changed](CHANGELOG.md)
+**Firmware 1.15.0 · web page 1.26.0** · [Download](https://github.com/winreboot/esp32s3-lathe/releases) · [Build guide](docs/BUILD_GUIDE.md) · [What changed](CHANGELOG.md)
 
 ## On the screen
 
@@ -70,6 +70,7 @@ All screens in both colours are in [docs/screens](docs/screens).
 | **Thread Assist** | Choose a thread at the lathe, see the pass plan, and send the program to UCCNC without walking to the PC. |
 | **Spindle Diagnostics** | Shows whether the spindle holds speed and whether the encoder is healthy, so a bad thread can be blamed on the right thing. |
 | **Material & Speed** | A suggested spindle speed for the material, the tool and the diameter, for a good finish. |
+| **G-code generators** | Parting off with a zig-zag or pecks, grooving, facing, turning, tapers and peck drilling: enter the sizes, check the toolpath preview, and send the program to UCCNC. |
 | **Web dashboard** | Any browser on your network: live readout and spindle gauge, a Thread Wizard for 13 thread forms (UN, ISO, Acme, Trapezoidal, Whitworth, BSP, NPT and more) with insert suggestions, a tool list, recording with G-code export, run hours, alarms, settings and firmware updates over Wi-Fi. |
 | **Works with UCCNC** | The spindle encoder is shared with the G540, so G33 threading keeps working. The ESP32 only watches the axes. |
 
@@ -77,7 +78,7 @@ It is not a safety device: keep the lathe's emergency stop within reach.
 
 ### Thread Assist: from the screen to UCCNC
 
-The ESP32 cannot write a file onto the PC, so the PC fetches the program:
+The ESP32 cannot write a file onto the PC, so the PC fetches the program (the same way for programs sent from the dashboard):
 
 1. On the lathe: Settings → **TOOLS** → **Thread Assist**. Press **PRESETS** and pick the thread, tap **LENGTH** to type the length in inches, and **PASSES** to choose 6, 8, 11 or 14 passes (two spring passes are always added). Press **SEND**.
 2. On the PC, either
@@ -86,6 +87,23 @@ The ESP32 cannot write a file onto the PC, so the PC fetches the program:
 3. Check the loaded program in UCCNC's toolpath view before the first cut. The program stays on the ESP32 until it restarts.
 
 The program is the same one the web page's Thread Wizard writes with its default choices: flank infeed at 29.5°, equal metal per pass, a stop to try the nut, and the tool always moved out in X before it travels along Z.
+
+### G-code generators on the dashboard
+
+<p align="center"><img src="docs/img/gcode_generators.png" alt="The G-code page: parting off with a zig-zag, its parameters, the toolpath preview and the warnings" width="100%"></p>
+
+The dashboard's **G-code** page writes the everyday programs from a few sizes, with a to-scale preview of every move and warnings before anything is cut:
+
+| Generator | What it does |
+| --- | --- |
+| **Parting off** | A **zig-zag** ramp across a groove a little wider than the blade, going deeper on every crossing so the blade never takes a full-width plunge, or **step plunges** with a back-off before each one. The extra width goes toward the chuck so the part keeps its length. It stops at a web diameter you choose (or cuts through), slows the feed near the centre and can leave the groove to clear chips. |
+| **Grooving** | Grooves wider than the tool, with a finishing pass on both walls and the floor: thread relief, O-ring and circlip grooves. |
+| **Facing** | Passes from the outside to the centre or to a bore, a light finishing pass, and just past the centre so no pip is left. |
+| **Turning** | Roughing to a diameter over a length, a finishing pass that squares the shoulder, and an optional 45° chamfer at the end. |
+| **Taper** | Arbors and centres: roughing that follows the taper, then a finishing pass; shows the included angle and the taper per foot. |
+| **Peck drilling** | For a drill held on centre in the tool post, with pecks out of the hole or short back-offs. |
+
+Every program is plain G0/G1 G-code for the inch UCCNC profile (X as diameter, Z0 on the end face), and the tool always leaves the work in X before it travels along Z. **Send to UCCNC** puts the program on the ESP32 and `M20200` loads it, as for Thread Assist; **Download** saves the `.nc` file. The Thread Wizard has the same Send button. Each generator was checked with a cutting simulation: no rapid passes through metal, no cut is deeper than asked, and the finished shapes match the sizes entered.
 
 ### Spindle Diagnostics: what the readings mean
 
@@ -115,7 +133,7 @@ HSS figures and the carbide finishing column are from LittleMachineShop's [turni
 
 ### Arduino IDE (easiest)
 
-1. From [Releases](https://github.com/winreboot/esp32s3-lathe/releases), download `esp32s3_lathe_fw1.14.0_page1.25.0_arduino.zip`. It holds the sketch and the four libraries it needs.
+1. From [Releases](https://github.com/winreboot/esp32s3-lathe/releases), download `esp32s3_lathe_fw1.15.0_page1.26.0_arduino.zip`. It holds the sketch and the four libraries it needs.
 2. Boards Manager: install **esp32** by Espressif Systems (3.x, checked with 3.3.13, or 2.0.17).
 3. Copy the folders in `libraries` into your Arduino libraries folder and restart the IDE.
 4. Open `esp32s3_lathe/esp32s3_lathe.ino`. The **Tools** menu settings are at the top of that file: ESP32S3 Dev Module, USB CDC On Boot Enabled, Flash 8 MB, partition "8M with spiffs", PSRAM OPI.

@@ -14,3 +14,5 @@ __pycache__/
 # OS
 Thumbs.db
 .DS_Store
+# written by tools/gcode_cases.js for tools/check_gcode.py
+tools/gcode_cases.json

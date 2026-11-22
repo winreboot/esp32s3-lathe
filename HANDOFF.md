@@ -1,8 +1,17 @@
-# Hand-off: where the work stands (9 November 2026)
+# Hand-off: where the work stands (22 November 2026)
 
 Read `CLAUDE.md` for the working rules, `README.md` for what the system does, `CHANGELOG.md` for every version. This file is the context a new session would otherwise lack: what was decided recently, why, and what is next.
 
-## Current versions
+## Now
+- Firmware **1.15.0**, web page **1.26.0** (`FW_MIN` 1.4.0; Send to UCCNC needs 1.15.0). Published on GitHub (`main`, releases); the user flashes the Arduino IDE sketch, not PlatformIO.
+- `src/main.cpp` stays the only source. `tools/make_arduino.py` writes `arduino/esp32s3_lathe/` (lathe.cpp, fonts, artwork, the page gzipped into the firmware); it builds on Arduino-ESP32 2.0.17 and 3.x (`pwmBegin`/`pwmWrite` pick the PWM calls). Run it after every change and commit the result.
+- Screens since 1.12: artwork PNGs drawn by `tools/make_art.py` (dark blue and `_k` black sets) are decoded into a PSRAM sprite and the live values are painted on top; the coordinates in `make_art.py` and the `draw...Art` functions must agree. Flat drawing code remains as the fallback.
+- "The job": one program kept on the ESP32 for UCCNC. SEND on Thread Assist (touch screen) or Send to UCCNC on the page (`POST /api/job`) sets it; the `M20200` macro from `/api/uccnc-macro` downloads and loads it. The macro has not yet been confirmed on the user's UCCNC.
+- G-code page (1.26.0): Parting off (zig-zag ramp or step plunges, stop at a web), Grooving, Facing, Turning, Taper, Peck drilling. The user parts off with a zig-zag and never plunges to the centre; keep those defaults. After any change to a generator run `node tools/gcode_cases.js && python3 tools/check_gcode.py`: it replays every program on a model of the stock and must end with `FAILURES: 0` (no rapid through metal, no bite deeper than asked, sizes right).
+- The milled interface board (rev F, `hardware/`, `data/hw/`) was removed from the repository in the 1.14.0 publish and survives in the history; the web page's "Milled board (alt.)" Help tab still links to `hw/` files that are no longer in `data/`.
+- Lathe Carrier board (rev K, sold separately, design files not in this repo): same GPIOs as this firmware for the encoders, knob, PWM and display. Its OUT2 is GPIO 48, the default RGB LED pin here: change that default (or set the LED to Off) before the firmware runs on the board.
+
+## Before 22 November: notes up to firmware 1.9.0
 - Firmware **1.9.0** (`platformio.ini`), web page **1.21.1** (`data/index.html`, `FW_MIN` 1.4.0), interface board **rev F** (`hardware/make_pcb.py`).
 - 1.9.0: Colours screen (red/blue swap + black background, `dblack`). All screen colours go through `theme()` in main.cpp; never hard-code the background or panel colours again.
 - Smooth digits must be drawn with `setTextColor(fg)` only (no background colour): LovyanGFX then uses its read-back alpha-blend path on the sprite. With a background colour it painted dark boxes on the real panel (1.8.2).

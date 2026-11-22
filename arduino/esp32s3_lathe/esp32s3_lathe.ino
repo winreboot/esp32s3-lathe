@@ -1,5 +1,5 @@
 /*
-  ESP32-S3 lathe controller, firmware 1.14.0 with web page 1.25.0 built in.
+  ESP32-S3 lathe controller, firmware 1.15.0 with web page 1.26.0 built in.
   Arduino IDE version of the PlatformIO project (github.com/winreboot/esp32s3-lathe).
 
   The code is in the lathe.cpp tab; this file only carries the setup notes. lathe.cpp, fonts_vlw.h and

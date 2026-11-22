@@ -13,6 +13,10 @@ Change either part, then bump its version and add an entry here.
 
 ## Firmware
 
+### 1.15.0
+- **Programs from the web page for UCCNC.** `POST /api/job?name=...&file=...` with the G-code as the body (64 KB at most) makes it the job, the same slot SEND on the touch screen's Thread Assist uses, so the `M20200` macro in UCCNC loads it. The newest program replaces the last; it is kept until the ESP32 restarts. `GET /api/job` now also gives `file` and `source` (`screen` or `web`), and `/api/job.nc` downloads under the job's own file name (letters, digits, `.` `-` `_`, at most 40 characters). Each upload is logged in Events.
+- Nothing else changes: the touch screens are as in 1.14.0.
+
 ### 1.14.0
 - **Tools: three new touch screens**, opened with the new TOOLS button in the Settings title bar. Each has artwork for both backgrounds and a plain version, like the other screens, and stays open until Back is pressed.
 - **Thread Assist.** Twelve metric and twelve inch presets on their own screen, the length typed on a number pad (or taken from the Z DRO), 6, 8, 11 or 14 passes plus two spring passes, and the thread depth and the depth after every pass shown before anything is cut. SEND makes the G33 program and keeps it on the ESP32 as a job: `/api/job` describes it, `/api/job.nc` is the program. The ESP32 cannot write onto the PC, so the PC fetches it: the page's Thread Wizard shows a Download link, and `/api/uccnc-macro` hands out a UCCNC macro (`M20200.txt`, written with the ESP32's own address) that downloads the job and loads it with `exec.Loadfile`. The macro has not been run on a real UCCNC yet.
@@ -133,6 +137,19 @@ Change either part, then bump its version and add an entry here.
 | A | 1.13.0 | 165 × 118 mm single-sided, first milled version |
 
 ## Web page
+
+### 1.26.0 (needs firmware 1.4.0; Send to UCCNC needs 1.15.0)
+- **New G-code page** with six generators. Each has its parameters, a to-scale toolpath preview (cutting moves and rapids), warnings, the program text, **Download** and **Send to UCCNC**:
+  - **Parting off.** Zig-zag ramp (the blade crosses a groove a little wider than itself, going deeper each time, so it never takes a full-width plunge) or step plunges (pecks at two or more places across the groove with a back-off before each one). The extra width goes toward the chuck so the part keeps its length; the program stops at a web diameter you choose (or cuts through), slows the feed below a diameter, can leave the groove every few zigs to clear chips, and works with the blade touched off on either corner. The depth step is the deepest bite anywhere, and the last crossing flattens the floor.
+  - **Grooving.** Grooves wider than the tool: side-by-side plunges, then a finishing pass on the right wall, the floor and the left wall. For thread relief, O-ring and circlip grooves.
+  - **Facing.** Passes from the outside to the centre (or to a bore), a lighter finishing pass, and a little past the centre so no pip is left.
+  - **Turning.** Roughing to a diameter over a length, a finishing pass that squares the shoulder, and an optional 45° chamfer at the end (roughed in steps when it is bigger than one depth of cut). Tailstock mode parks the tool out in X instead of along Z.
+  - **Taper.** Roughing passes that follow the taper, a finishing pass along it with a lead-in on its own line, the shoulder squared; shows the included angle, the half angle and the taper per foot.
+  - **Peck drilling.** For a drill held on centre in the tool post: pecks out of the hole or a 0.010 in back-off, depth to the full diameter or to the point.
+- Every program: inch, X as diameter, Z0 on the end face, G0 and G1 only, feeds per minute from feed per revolution × RPM, the tool out in X before it travels along Z, plain ASCII comments. Warnings for Max RPM and the soft limits from Settings. The values are remembered in the browser.
+- Checked with a cutting simulation of 33 parameter sets: no rapid passes through metal, no cut is deeper than asked, and the finished shapes match within 0.0003 in.
+- **Thread Wizard: Send to UCCNC** next to Download.
+- The line about the program waiting for UCCNC shows above both the Thread Wizard and the generators, and says whether it came from the touch screen or this page.
 
 ### 1.25.0
 - Thread Wizard: when a program has been sent from the touch screen's Thread Assist (firmware 1.14.0), a line at the top names it and links to the G-code and to the UCCNC macro.

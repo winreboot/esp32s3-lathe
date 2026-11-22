@@ -2,7 +2,7 @@
 
 A step-by-step guide to building the controller from ready-made modules: flashing the ESP32-S3, wiring the touch display, the level shifter modules and the PC817 module, mounting the encoders, connecting the G540 and the lathe, and calibrating. The Lathe Carrier board, available soon, will replace the modules and most of the wiring in sections 4 to 6 and 8; see the [README](../README.md). The same guide, with the interactive wiring diagram and tick-off checklist, is on the dashboard under **Help**; this copy lives with the code so it can be read without the ESP32.
 
-Versions this guide matches: firmware **1.15.0**, web page **1.26.0**. The [CHANGELOG](../CHANGELOG.md) lists every change.
+Versions this guide matches: firmware **1.15.0**, web page **1.27.0**. The [CHANGELOG](../CHANGELOG.md) lists every change.
 
 ![The dashboard](img/dashboard.png)
 

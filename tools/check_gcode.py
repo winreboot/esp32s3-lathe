@@ -5,8 +5,13 @@ The tool is a point (turning, facing, taper) or a flat edge W wide (parting, gro
   - no G0 (rapid) ever has metal above the tool tip: a rapid never cuts,
   - the deepest radial bite of any G1 (cutting move),
   - the shape left at the end against the shape asked for,
-  - X never below the centreline except where the program means to go past it."""
+  - X never below the centreline except where the program means to go past it.
+Waves are checked with the picked tool's real outline (its lower edge, exported by gcode_cases.js): no rapid in metal,
+the deepest bite, no cut into the shape asked for, and the metal left where the tool cannot reach, which must match
+what the page says. For every case the page's own cut simulation (behind the preview and Play) must find no rapid in
+metal, and for parting, grooving, turning, taper and waves the metal it leaves must match this model."""
 import json, re, math, os
+import numpy as np
 DZ = 0.0005
 def parse(code):
     x = z = None; mv = []
@@ -89,7 +94,7 @@ for i, c in enumerate(o['taper']):
     report('taper', i, ok, 'Ds=%s Db=%s D0=%s: rapids in metal %d, worst error along the taper %.4f in, deepest bite %.4f (doc %.3f)' % (v['Ds'], v['Db'], v['D0'], len(bad), max(errs), bite, v['doc']))
 for i, c in enumerate(o['drill']):
     v = c['v']; mv = parse(c['code'])
-    pl = v['Dd'] / 2 / math.tan(math.radians(59)); zb = -(v['depth'] + (pl if v['to'] == 'full' else 0))
+    pl = v['Dd'] / 2 / math.tan(math.radians(c['tool']['pa'] / 2)); zb = -(v['depth'] + (pl if v['to'] == 'full' else 0))
     deepest = min(min(m[2], m[4]) for m in mv); feeds = [m for m in mv if m[0] == 'G1']
     off_axis = any(abs(m[1]) > 1e-9 or abs(m[3]) > 1e-9 for m in mv if min(m[2], m[4]) < 0.05)
     # each feed starts at most 0.010 above where the last one ended, and never goes back up
@@ -100,5 +105,75 @@ for i, c in enumerate(o['drill']):
         prev = m[4]
     report('drill', i, abs(deepest - zb) < 1e-4 and not off_axis and ok_seq and max(m[2] - m[4] for m in feeds) <= v['q'] + 0.0101 + (v['zs'] if True else 0),
            'mode=%s to=%s: bottom Z %.4f (asked %.4f), any move off the axis inside the work %s, feeds only go down %s' % (v['mode'], v['to'], deepest, zb, off_axis, ok_seq))
+# ---- waves: the tool's outline against the shape asked for
+def wave_shape(sh, w):
+    q = 0.96; b = lambda x: (1 - math.sqrt(1 - q * q * x * x)) / (1 - math.sqrt(1 - q * q))
+    return b(w) if sh == 'bead' else 1 - b(1 - w) if sh == 'cove' else w if sh == 'v' else (1 - math.cos(math.pi * w)) / 2
+def wave_target(v, z):
+    R0, Rc, zs, n, p = v['D0'] / 2, v['Dc'] / 2, v['zs'], round(v['n']), v['p']; ze = -(zs + n * p); k = min(90, max(0, v['flat'])) / 100
+    if z >= -zs: return Rc
+    if z < ze: return R0
+    s = (-zs - z) / p; t = s - math.floor(s); w = 2 * min(t, 1 - t); w2 = max(0, (w - k) / (1 - k)) if k > 0 else w
+    return Rc - v['a'] * wave_shape(v['shape'], w2)
+def run_env(mv, env, zlo, zhi, D):
+    n = int(round((zhi - zlo) / DZ)); top = np.full(n, D / 2); h = np.array(env['h']); u0 = env['u0']; m = len(h)
+    bad = []; bite = 0.0
+    for g, x0, z0, x1, z1 in mv:
+        before = top.copy() if g == 'G1' else None
+        steps = max(1, int(math.ceil(max(abs(z1 - z0), abs(x1 - x0) / 2) / (DZ * 0.5))))
+        for k in range(steps + 1):
+            t = k / steps; z = z0 + (z1 - z0) * t; r = (x0 + (x1 - x0) * t) / 2
+            k0 = int(round((z + u0 - zlo) / DZ - 0.5)); a = max(0, -k0); b = min(m, n - k0)
+            if b <= a: continue
+            seg = top[k0 + a:k0 + b]; cut = r + h[a:b]
+            if g == 'G0' and (seg - cut).max() > 3e-4: bad.append((round(z, 4), round(2 * r, 4)))
+            np.minimum(seg, cut, out=seg)
+        if before is not None: bite = max(bite, float((before - top).max()))
+    return top, bad, bite
+for i, c in enumerate(o['wave']):
+    v = c['v']
+    if 'err' in c: report('wave', i, False, 'error: ' + c['err']); continue
+    mv = parse(c['code']); ze = -(v['zs'] + round(v['n']) * v['p']); zlo = ze - 0.4
+    top, bad, bite = run_env(mv, c['env'], zlo, 0.0, v['D0'])
+    zc = zlo + (np.arange(len(top)) + 0.5) * DZ; tg = np.array([wave_target(v, z) for z in zc])
+    # the last 0.002 in at each end is under the tool's steep nose side, where both models' sampling dominates
+    sec = (zc >= ze + 0.002) & (zc <= -0.002); shoulder = v['D0'] - v['Dc'] > 2e-4
+    zex = ze + c['tool']['rn'] + 0.002 if shoulder else ze
+    gouge = float((tg - top)[sec].max()); left = float((top - tg)[sec & (zc >= zex)].max())
+    ok = not bad and gouge <= 0.0008 and abs(left - c['left']) <= 0.0015 and (c['left'] > 0.001 or left <= 0.0025) and bite <= max(v['doc'], v['fa']) + 0.0015
+    report('wave', i, ok, 'shape=%s tool=%s a=%s p=%s: rapids in metal %d, cut into the shape %.4f, metal left %.4f (page says %.4f), deepest bite %.4f (doc %.3f)' % (v['shape'], c['tool']['k'], v['a'], v['p'], len(bad), gouge, left, c['left'], bite, v['doc']))
+    c['_py'] = (zlo, top)
+# ---- the page's own cut simulation: no rapid in metal, and the same metal left as this model
+def py_profile(gen, c):
+    v = c['v']; mv = parse(c['code'])
+    if gen == 'part': st = Stock(v['D'], -v['L'] - v['W'] - max(0, v['S']) - 0.3, 0); run(mv, st, v['W'], v['ref']); return st.radius_at, 'blade'
+    if gen == 'groove': st = Stock(v['D'], -v['Zw'] - v['Wg'] - 0.4, 0); run(mv, st, v['W'], v['ref']); return st.radius_at, 'blade'
+    if gen == 'wave':
+        zlo, top = c['_py']; return (lambda z: float(top[int((z - zlo) / DZ)]) if 0 <= int((z - zlo) / DZ) < len(top) else None), 'env'
+    return None, None
+for gen in o:
+    for i, c in enumerate(o[gen]):
+        if 'err' in c: continue
+        sim = c['sim']; v = c['v']; T = c['tool']; msg = []; ok = not sim['hits']
+        if sim['hits']: msg.append('rapids in metal %s' % sim['hits'][:2])
+        f, kind = py_profile(gen, c); worst = 0.0
+        if f:
+            for z, ro, ri in sim['pts']:
+                a, b0, b1 = f(z), f(z - 0.0015), f(z + 0.0015)
+                if a is None or b0 is None or b1 is None or max(a, b0, b1) - min(a, b0, b1) > 0.002: continue
+                if kind == 'blade' and T.get('rc'):   # corner radii: the page rounds the groove corners, the flat-edge model does not
+                    if any(abs(z - zz) < T['rc'] + 0.002 for zz in (-v.get('L', 0), -v.get('L', 0) - v['W'] - max(0, v.get('S', 0)), -v.get('Zw', 0), -v.get('Zw', 0) - v.get('Wg', 0))): continue
+                d = abs(max(ro, ri) - a)
+                if d > worst: worst = d
+            ok = ok and worst <= 0.0015; msg.append('page vs model: worst difference %.4f in' % worst)
+        if gen == 'turn':
+            d = 2 * min((ro for z, ro, ri in sim['pts'] if abs(z + v['L'] / 2) < 0.002), default=0)
+            ok = ok and abs(d - v['Df']) < 0.0015; msg.append('Ø at mid-length %.4f (asked %.4f)' % (d, v['Df']))
+        if gen == 'taper':
+            m = (v['Db'] - v['Ds']) / 2 / v['L']; e = 2 * T['rn'] * (1 + m - math.sqrt(1 + m * m)); zm = -v['L'] / 2
+            d = 2 * min((ro for z, ro, ri in sim['pts'] if abs(z - zm) < 0.002), default=0)
+            want = v['Ds'] + (v['Db'] - v['Ds']) / 2 + e
+            ok = ok and abs(d - want) < 0.0015; msg.append('Ø at mid-taper %.4f (taper %.4f + nose error %.4f in the warning)' % (d, want - e, e))
+        report('sim:' + gen, i, ok, 'tool=%s: %s (%.0f ms)' % (T['k'], ', '.join(msg) or 'no rapid in metal', sim['ms']))
 print('FAILURES:', fails)
 raise SystemExit(1 if fails else 0)

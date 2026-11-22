@@ -6,7 +6,7 @@ A touch screen and a Wi-Fi dashboard for a CNC-converted mini lathe. An ESP32-S3
 
 It was built for a Vevor MX-210V (8 × 16) mini lathe converted to CNC with UCCNC, a UC100 and a Gecko G540, and works next to the motion controller: it never drives the steppers.
 
-**Firmware 1.15.0 · web page 1.26.0** · [Download](https://github.com/winreboot/esp32s3-lathe/releases) · [Build guide](docs/BUILD_GUIDE.md) · [What changed](CHANGELOG.md)
+**Firmware 1.15.0 · web page 1.27.0** · [Download](https://github.com/winreboot/esp32s3-lathe/releases) · [Build guide](docs/BUILD_GUIDE.md) · [What changed](CHANGELOG.md)
 
 ## On the screen
 
@@ -70,7 +70,7 @@ All screens in both colours are in [docs/screens](docs/screens).
 | **Thread Assist** | Choose a thread at the lathe, see the pass plan, and send the program to UCCNC without walking to the PC. |
 | **Spindle Diagnostics** | Shows whether the spindle holds speed and whether the encoder is healthy, so a bad thread can be blamed on the right thing. |
 | **Material & Speed** | A suggested spindle speed for the material, the tool and the diameter, for a good finish. |
-| **G-code generators** | Parting off with a zig-zag or pecks, grooving, facing, turning, tapers and peck drilling: enter the sizes, check the toolpath preview, and send the program to UCCNC. |
+| **G-code generators** | Parting off with a zig-zag or pecks, grooving, facing, turning, tapers, waves and peck drilling: pick the tool, enter the sizes, press Play to watch it cut, and send the program to UCCNC. |
 | **Web dashboard** | Any browser on your network: live readout and spindle gauge, a Thread Wizard for 13 thread forms (UN, ISO, Acme, Trapezoidal, Whitworth, BSP, NPT and more) with insert suggestions, a tool list, recording with G-code export, run hours, alarms, settings and firmware updates over Wi-Fi. |
 | **Works with UCCNC** | The spindle encoder is shared with the G540, so G33 threading keeps working. The ESP32 only watches the axes. |
 
@@ -90,9 +90,9 @@ The program is the same one the web page's Thread Wizard writes with its default
 
 ### G-code generators on the dashboard
 
-<p align="center"><img src="docs/img/gcode_generators.png" alt="The G-code page: parting off with a zig-zag, its parameters, the toolpath preview and the warnings" width="100%"></p>
+<p align="center"><img src="docs/img/gcode_generators.png" alt="The G-code page: waves cut with a VCMT 35° insert, the tool buttons, the parameters and the preview part-way through Play" width="100%"></p>
 
-The dashboard's **G-code** page writes the everyday programs from a few sizes, with a to-scale preview of every move and warnings before anything is cut:
+The dashboard's **G-code** page writes the everyday programs from a few sizes, with a to-scale preview, a **Play** button that runs the program on the drawing, and warnings before anything is cut:
 
 | Generator | What it does |
 | --- | --- |
@@ -101,9 +101,16 @@ The dashboard's **G-code** page writes the everyday programs from a few sizes, w
 | **Facing** | Passes from the outside to the centre or to a bore, a light finishing pass, and just past the centre so no pip is left. |
 | **Turning** | Roughing to a diameter over a length, a finishing pass that squares the shoulder, and an optional 45° chamfer at the end. |
 | **Taper** | Arbors and centres: roughing that follows the taper, then a finishing pass; shows the included angle and the taper per foot. |
+| **Waves** | A row of waves cut into the outside, for a decorative band or a grip: smooth (sine), round beads, round coves or straight-sided V, with the depth, the wave length and a flat land on each crest to make it bolder or flatter. The path follows the picked tool's real outline, so it never cuts into the waves, and it says how much a tool too blunt for the valleys would leave. |
 | **Peck drilling** | For a drill held on centre in the tool post, with pecks out of the hole or short back-offs. |
 
 Every program is plain G0/G1 G-code for the inch UCCNC profile (X as diameter, Z0 on the end face), and the tool always leaves the work in X before it travels along Z. **Send to UCCNC** puts the program on the ESP32 and `M20200` loads it, as for Thread Assist; **Download** saves the `.nc` file. The Thread Wizard has the same Send button. Each generator was checked with a cutting simulation: no rapid passes through metal, no cut is deeper than asked, and the finished shapes match the sizes entered.
+
+**Pick the tool.** A row of buttons above the form offers the tools that suit the program: HSS parting blades (1/16, 3/32, 1/8 in) and 2 or 3 mm grooving inserts; CCMT 80°, DCMT 55° and VCMT 35° inserts in their usual holders, a VCMT in a neutral holder, a 6 mm round insert and a ground HSS turning tool, each with a nose radius you can change; twist and split-point drills. Tools saved on the Tools page whose name holds an insert code (CCMT 09T304, DCMT 21.51, MGMN 300 and so on) appear there too. The tool is drawn in the preview, named in the program header, and used for the waves' path and for Play. Programs drive the tool tip as touched off (X on a diameter, Z on the end face), with no nose radius compensation; the page says what a nose radius does to a shoulder, a chamfer or a taper, and by how much.
+
+<p align="center"><img src="docs/img/gcode_play.png" alt="Play, zoomed in: a 3/32 in blade half way down a zig-zag parting groove, the metal already removed shown dark" width="60%"></p>
+
+**Play.** The preview opens on the finished result. Play runs the program from the start and takes the metal off as the tool moves, at 1× (real time) up to 100×, with the line being run and the tool position under the drawing. Drag the slider to any point, or click a line in the program to see the state after it. Zoom with + and − or the mouse wheel, drag to look around, and Follow keeps the tool in view. A rapid move that would cut metal with the picked tool is marked in red and listed in the warnings.
 
 ### Spindle Diagnostics: what the readings mean
 
@@ -133,7 +140,7 @@ HSS figures and the carbide finishing column are from LittleMachineShop's [turni
 
 ### Arduino IDE (easiest)
 
-1. From [Releases](https://github.com/winreboot/esp32s3-lathe/releases), download `esp32s3_lathe_fw1.15.0_page1.26.0_arduino.zip`. It holds the sketch and the four libraries it needs.
+1. From [Releases](https://github.com/winreboot/esp32s3-lathe/releases), download `esp32s3_lathe_fw1.15.0_page1.27.0_arduino.zip`. It holds the sketch and the four libraries it needs.
 2. Boards Manager: install **esp32** by Espressif Systems (3.x, checked with 3.3.13, or 2.0.17).
 3. Copy the folders in `libraries` into your Arduino libraries folder and restart the IDE.
 4. Open `esp32s3_lathe/esp32s3_lathe.ino`. The **Tools** menu settings are at the top of that file: ESP32S3 Dev Module, USB CDC On Boot Enabled, Flash 8 MB, partition "8M with spiffs", PSRAM OPI.
